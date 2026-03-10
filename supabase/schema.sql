@@ -11,6 +11,8 @@ create table profiles (
   avatar_url text,
   city text default 'Toronto',
   top_genres text[] default '{}',
+  top_artists jsonb default '[]',
+  top_tracks jsonb default '[]',
   created_at timestamptz default now()
 );
 

@@ -65,6 +65,16 @@ export default function ProfilePage() {
       }
 
       setProfile(profileData)
+      
+      // Load persisted top data into spotifyData state
+      if (profileData?.top_genres?.length || profileData?.top_artists?.length || profileData?.top_tracks?.length) {
+        setSpotifyData({
+          genres: profileData.top_genres || [],
+          topArtists: profileData.top_artists || [],
+          tracks: profileData.top_tracks || [],
+        })
+      }
+      
       setLoading(false)
     }
     init()
@@ -166,6 +176,8 @@ export default function ProfilePage() {
         .from('profiles')
         .update({
           top_genres: genres,
+          top_artists: topArtists,
+          top_tracks: tracks,
         })
         .eq('id', user.id)
 
@@ -342,18 +354,16 @@ export default function ProfilePage() {
             <div className="text-sm text-gray-400">Top Genres</div>
           </div>
           <div className="bg-gray-900 rounded-xl p-4 text-center">
+            <div className="text-2xl font-bold text-[#1DB954]">{profile?.top_artists?.length || 0}</div>
+            <div className="text-sm text-gray-400">Top Artists</div>
+          </div>
+          <div className="bg-gray-900 rounded-xl p-4 text-center">
+            <div className="text-2xl font-bold text-[#1DB954]">{profile?.top_tracks?.length || 0}</div>
+            <div className="text-sm text-gray-400">Top Tracks</div>
+          </div>
+          <div className="bg-gray-900 rounded-xl p-4 text-center">
             <div className="text-2xl font-bold text-[#1DB954]">{profile?.city || 'Toronto'}</div>
             <div className="text-sm text-gray-400">City</div>
-          </div>
-          <div className="bg-gray-900 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-[#1DB954]">
-              {new Date(user?.created_at || Date.now()).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-            </div>
-            <div className="text-sm text-gray-400">Member Since</div>
-          </div>
-          <div className="bg-gray-900 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-[#1DB954]">1</div>
-            <div className="text-sm text-gray-400">Connected Apps</div>
           </div>
         </div>
 

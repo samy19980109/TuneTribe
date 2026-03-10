@@ -1,11 +1,26 @@
 export type MusicSource = 'spotify' | 'apple' | 'youtube' | 'local'
 
+export interface TopArtist {
+  id: string
+  name: string
+  image: string | null
+}
+
+export interface TopTrack {
+  id: string
+  title: string
+  artist: string
+  albumArt: string | null
+}
+
 export interface Profile {
   id: string
   username: string | null
   avatar_url: string | null
   city: string
   top_genres: string[]
+  top_artists: TopArtist[]
+  top_tracks: TopTrack[]
   created_at: string
 }
 
