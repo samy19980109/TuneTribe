@@ -84,6 +84,8 @@ export default function HomePage() {
   const [user, setUser] = useState<any>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [genreDropdownOpen, setGenreDropdownOpen] = useState(false)
+  const genreDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const init = async () => {
@@ -154,6 +156,17 @@ export default function HomePage() {
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [user, selectedGenres.length])
+
+  // Genre dropdown click outside handler
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (genreDropdownRef.current && !genreDropdownRef.current.contains(event.target as Node)) {
+        setGenreDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -288,10 +301,65 @@ export default function HomePage() {
               </select>
             </div>
 
+            {/* Genre Dropdown */}
+            <div className="relative flex-shrink-0" ref={genreDropdownRef}>
+              <button 
+                onClick={() => setGenreDropdownOpen(!genreDropdownOpen)}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white flex items-center gap-2 hover:bg-gray-700 transition-colors"
+              >
+                <span>All Genres</span>
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {genreDropdownOpen && (
+                <div className="absolute top-full left-0 mt-2 w-64 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-50 max-h-80 overflow-y-auto">
+                  {profile?.top_genres && profile.top_genres.length > 0 && (
+                    <div className="p-2 border-b border-gray-800">
+                      <p className="text-xs font-medium text-gray-500 px-2 py-1">Your Top Genres</p>
+                      <div className="flex flex-wrap gap-1">
+                        {profile.top_genres.slice(0, 10).map((genre) => (
+                          <button
+                            key={`user-${genre}`}
+                            onClick={() => toggleGenre(genre)}
+                            className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                              selectedGenres.some(sg => sg.toLowerCase() === genre.toLowerCase())
+                                ? 'bg-[#1DB954] text-black'
+                                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                            }`}
+                          >
+                            {genre}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="p-2">
+                    <p className="text-xs font-medium text-gray-500 px-2 py-1">All Genres</p>
+                    <div className="flex flex-wrap gap-1">
+                      {genres.map((genre) => (
+                        <button
+                          key={genre.id}
+                          onClick={() => toggleGenre(genre.name)}
+                          className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                            selectedGenres.some(sg => sg.toLowerCase() === genre.name.toLowerCase())
+                              ? 'bg-[#1DB954] text-black'
+                              : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                          }`}
+                        >
+                          {genre.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Genre Tags - Scrollable on mobile */}
             <div className="flex-1 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
               <div className="flex flex-nowrap md:flex-wrap gap-2 min-w-max md:min-w-0">
-                {genres.slice(0, 30).map((genre) => (
+                {genres.slice(0, 15).map((genre) => (
                   <button
                     key={genre.id}
                     onClick={() => toggleGenre(genre.name)}
@@ -324,9 +392,6 @@ export default function HomePage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">
               {selectedCity === 'toronto' ? 'Toronto' : selectedCity}
-              {selectedGenres.length > 0 && (
-                <span className="text-gray-400 font-normal"> · {selectedGenres.join(', ')}</span>
-              )}
             </h2>
             <span className="text-sm text-gray-500">{events.length} events</span>
           </div>
