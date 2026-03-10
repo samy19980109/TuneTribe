@@ -1,36 +1,119 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TuneTribe
+
+A city-based music listening event platform that brings people together through shared musical experiences. Create and join listening events in your city, connect your favorite music streaming services, and discover new music with fellow music enthusiasts.
+
+## Features
+
+- **City-Based Events** - Find and create music listening events in your city
+- **Multi-Platform Integration** - Connect your Spotify, Apple Music, or YouTube accounts
+- **User Profiles** - Showcase your music taste with top genres and avatar
+- **RSVP System** - Track event attendance with going/maybe/not_going status
+- **Recurring Events** - Support for weekly and monthly recurring listening sessions
+
+## Tech Stack
+
+- **Frontend**: Next.js 16, React 19, Tailwind CSS
+- **Backend**: Supabase (Auth, Database)
+- **Music APIs**: Spotify Web API, YouTube Data API, Apple Music API
+- **State Management**: Zustand
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
+- Node.js 18+
+- npm/yarn/pnpm/bun
+- Supabase project
+- Spotify Developer account (for API access)
+- YouTube Data API key (optional)
+- Apple Music API credentials (optional)
+
+### Installation
+
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <repository-url>
+cd tunetribe
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Set up environment variables:
+```bash
+cp .env.example .env.local
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Configure your `.env.local` with the following:
+```env
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 
-## Learn More
+# Spotify
+SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+NEXT_PUBLIC_SPOTIFY_REDIRECT_URI=http://localhost:3000/callback
 
-To learn more about Next.js, take a look at the following resources:
+# YouTube (optional)
+YOUTUBE_API_KEY=your_youtube_api_key
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Apple Music (optional)
+APPLE_MUSIC_KEY_ID=your_apple_key_id
+APPLE_MUSIC_TEAM_ID=your_apple_team_id
+APPLE_MUSIC_PRIVATE_KEY=your_apple_private_key
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+5. Set up the database:
+```bash
+# Apply the schema to your Supabase project
+# The schema is located at supabase/schema.sql
+```
 
-## Deploy on Vercel
+6. Run the development server:
+```bash
+npm run dev
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+7. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project Structure
+
+```
+src/
+├── app/                    # Next.js App Router pages
+│   ├── api/               # API routes
+│   ├── auth/              # Authentication pages
+│   ├── callback/          # OAuth callbacks
+│   ├── events/            # Event pages
+│   ├── login/             # Login page
+│   ├── profile/          # User profile page
+│   └── page.tsx          # Home page
+├── lib/
+│   ├── music-api/         # Music service integrations
+│   ├── supabase/          # Supabase client/server
+│   └── types.ts           # TypeScript types
+└── stores/                # Zustand stores
+```
+
+## Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+
+## Database Schema
+
+- **profiles** - User profiles with username, avatar, city, and top genres
+- **cities** - Supported cities for events
+- **genres** - Music genres for categorization
+- **events** - Listening events with venue, date, time, and recurrence
+- **event_attendees** - Event RSVPs and attendance tracking
+- **connected_services** - OAuth tokens for connected music services
+
+## License
+
+MIT
