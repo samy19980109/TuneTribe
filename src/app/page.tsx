@@ -123,7 +123,7 @@ export default function HomePage() {
         setProfile(profileData)
 
         if (profileData?.top_genres?.length) {
-          setSelectedGenres(profileData.top_genres)
+          setSelectedGenres(profileData.top_genres.slice(0, 20))
         }
       }
 
@@ -145,7 +145,7 @@ export default function HomePage() {
         if (profileData) {
           setProfile(profileData)
           if (profileData.top_genres?.length && selectedGenres.length === 0) {
-            setSelectedGenres(profileData.top_genres)
+            setSelectedGenres(profileData.top_genres.slice(0, 20))
           }
         }
       }
@@ -168,7 +168,9 @@ export default function HomePage() {
         .order('date', { ascending: true })
 
       if (selectedGenres.length > 0) {
-        const genreIds = genres.filter(g => selectedGenres.includes(g.name)).map(g => g.id)
+        const genreIds = genres.filter(g => 
+          selectedGenres.some(sg => sg.toLowerCase() === g.name.toLowerCase())
+        ).map(g => g.id)
         if (genreIds.length > 0) {
           query = query.in('genre_id', genreIds)
         }
@@ -184,11 +186,13 @@ export default function HomePage() {
   }, [selectedCity, selectedGenres, cities, genres])
 
   const toggleGenre = (genre: string) => {
-    setSelectedGenres(prev =>
-      prev.includes(genre)
-        ? prev.filter(g => g !== genre)
+    const normalizedGenre = genre.toLowerCase()
+    setSelectedGenres(prev => {
+      const hasGenre = prev.some(g => g.toLowerCase() === normalizedGenre)
+      return hasGenre
+        ? prev.filter(g => g.toLowerCase() !== normalizedGenre)
         : [...prev, genre]
-    )
+    })
   }
 
   const handleLogout = async () => {
@@ -287,12 +291,12 @@ export default function HomePage() {
             {/* Genre Tags - Scrollable on mobile */}
             <div className="flex-1 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
               <div className="flex flex-nowrap md:flex-wrap gap-2 min-w-max md:min-w-0">
-                {genres.slice(0, 10).map((genre) => (
+                {genres.slice(0, 30).map((genre) => (
                   <button
                     key={genre.id}
                     onClick={() => toggleGenre(genre.name)}
                     className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
-                      selectedGenres.includes(genre.name)
+                      selectedGenres.some(sg => sg.toLowerCase() === genre.name.toLowerCase())
                         ? 'bg-[#1DB954] text-black'
                         : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                     }`}

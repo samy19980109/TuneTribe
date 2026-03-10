@@ -175,7 +175,7 @@ export default function ProfilePage() {
       const updateResult = await supabase
         .from('profiles')
         .update({
-          top_genres: genres,
+          top_genres: genres.slice(0, 20),
           top_artists: topArtists,
           top_tracks: tracks,
         })
@@ -280,7 +280,6 @@ export default function ProfilePage() {
                 <span
                   key={genre}
                   className="px-4 py-2 bg-[#1DB954]/20 text-[#1DB954] rounded-full text-sm font-medium"
-                  style={{ opacity: 1 - (index * 0.1) }}
                 >
                   {genre}
                 </span>

@@ -160,7 +160,7 @@ export async function getTopGenres(): Promise<string[]> {
   // Sort by count and take top genres
   const sortedGenres = Array.from(allGenres.entries())
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
+    .slice(0, 20)
     .map(([genre]) => genre)
   
   console.log('Sorted genres:', sortedGenres)

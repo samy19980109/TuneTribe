@@ -203,9 +203,9 @@ export async function getTopGenres(): Promise<string[]> {
     throw new Error('Not authenticated with Spotify')
   }
 
-  // Get top artists from Spotify
+  // Get top artists from Spotify (get 30 to ensure we have enough for genre lookup)
   console.log('Calling Spotify API for top artists...')
-  const artistsData = await fetchSpotifyApi('/me/top/artists?time_range=medium_term&limit=20', token)
+  const artistsData = await fetchSpotifyApi('/me/top/artists?time_range=medium_term&limit=30', token)
 
   if (!artistsData.items?.length) {
     console.log('No top artists found')
@@ -215,7 +215,7 @@ export async function getTopGenres(): Promise<string[]> {
   const genreCounts = new Map<string, number>()
 
   // Get artist names for MusicBrainz lookup
-  const artistNames = (artistsData.items || []).slice(0, 10).map((a: { name: string }) => a.name)
+  const artistNames = (artistsData.items || []).slice(0, 20).map((a: { name: string }) => a.name)
   
   console.log('Fetching genres from MusicBrainz for:', artistNames)
 
@@ -242,7 +242,7 @@ export async function getTopGenres(): Promise<string[]> {
 
   const sortedGenres = Array.from(genreCounts.entries())
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
+    .slice(0, 20)
     .map(([genre]) => genre)
 
   console.log('Sorted genres:', sortedGenres)
@@ -325,8 +325,22 @@ function normalizeGenres(genres: string[]): string[] {
     'country': ['Country'],
     'indie': ['Indie'],
     'metal': ['Metal'],
+    'heavy metal': ['Heavy Metal'],
+    'hard rock': ['Hard Rock'],
+    'thrash metal': ['Thrash Metal'],
+    'progressive metal': ['Progressive Metal'],
+    'alternative metal': ['Alternative Metal'],
+    'glam metal': ['Glam Metal'],
+    'speed metal': ['Speed Metal'],
     'folk': ['Folk'],
     'blues': ['Blues'],
+    'blues rock': ['Blues Rock'],
+    'classic rock': ['Classic Rock'],
+    'alternative rock': ['Alternative Rock'],
+    'progressive rock': ['Progressive Rock'],
+    'psychedelic rock': ['Psychedelic Rock'],
+    'grunge': ['Grunge'],
+    'post-grunge': ['Post-Grunge'],
     'reggae': ['Reggae'],
     'latin': ['Latin'],
     'world': ['World'],
@@ -339,13 +353,33 @@ function normalizeGenres(genres: string[]): string[] {
     'house': ['Electronic', 'Dance'],
     'techno': ['Electronic', 'Dance'],
     'trap': ['Hip-Hop'],
+    'trap latino': ['Latin Trap'],
     'drill': ['Hip-Hop'],
     'rap': ['Hip-Hop'],
     'dance': ['Dance'],
-    'disco': ['Dance'],
-    'funk': ['Soul'],
+    'disco': ['Disco'],
+    'funk': ['Funk'],
     'psychedelic': ['Alternative'],
     'experimental': ['Alternative'],
+    'synth-pop': ['Synth Pop'],
+    'dance-pop': ['Dance Pop'],
+    'contemporary r&b': ['Contemporary R&B'],
+    'alternative r&b': ['Alternative R&B'],
+    'pop rap': ['Pop Rap'],
+    'british': ['British'],
+    'american': ['American'],
+    'french': ['French'],
+    'french house': ['French House'],
+    'nwobhm': ['NWOBHM'],
+    'new wave of british heavy metal': ['NWOBHM'],
+    'traditional doom metal': ['Doom Metal'],
+    'proto doom': ['Doom Metal'],
+    'southern rock': ['Southern Rock'],
+    'groove metal': ['Groove Metal'],
+    'acoustic rock': ['Acoustic Rock'],
+    'art rock': ['Art Rock'],
+    'space rock': ['Space Rock'],
+    'noise rock': ['Noise Rock'],
   }
 
   const normalized = new Set<string>()
@@ -360,5 +394,5 @@ function normalizeGenres(genres: string[]): string[] {
     }
   })
 
-  return Array.from(normalized).slice(0, 5)
+  return Array.from(normalized).slice(0, 20)
 }
