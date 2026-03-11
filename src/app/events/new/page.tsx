@@ -3,12 +3,19 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import Link from 'next/link'
-import type { Genre, City } from '@/lib/types'
+import type { Genre } from '@/lib/types'
+import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { useAuthStore } from '@/stores/useAuthStore'
+import AppHeader from '@/components/AppHeader'
+import LoadingScreen from '@/components/LoadingScreen'
+
+const supabase = createClient()
 
 export default function NewEventPage() {
   const router = useRouter()
-  const supabase = createClient()
+
+  const { user, loading } = useRequireAuth()
+  const { signOut } = useAuthStore()
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -21,41 +28,22 @@ export default function NewEventPage() {
   const [genreId, setGenreId] = useState('')
   const [maxAttendees, setMaxAttendees] = useState('')
   const [coverImage, setCoverImage] = useState('')
+  const [cityId] = useState('')
 
   const [genres, setGenres] = useState<Genre[]>([])
-  const [cities, setCities] = useState<City[]>([])
-  const [cityId, setCityId] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const [user, setUser] = useState<any>(null)
 
   useEffect(() => {
-    const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
-        return
-      }
-      setUser(user)
-
-      const [genresRes, citiesRes] = await Promise.all([
-        supabase.from('genres').select('*'),
-        supabase.from('cities').select('*').eq('is_active', true)
-      ])
-
-      setGenres(genresRes.data || [])
-      setCities(citiesRes.data || [])
-
-      if (citiesRes.data?.[0]) {
-        setCityId(citiesRes.data[0].id)
-      }
-    }
-    init()
+    supabase.from('genres').select('*').then(({ data }) => {
+      setGenres(data || [])
+    })
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
+    if (!user) return
+    setSubmitting(true)
     setError('')
 
     try {
@@ -64,8 +52,8 @@ export default function NewEventPage() {
         .insert({
           title,
           description: description || null,
-          organizer_id: user?.id,
-          city_id: cityId,
+          organizer_id: user.id,
+          city_id: cityId || null,
           venue,
           address: address || null,
           date: date || null,
@@ -82,16 +70,12 @@ export default function NewEventPage() {
       if (eventError) throw eventError
 
       router.push(`/events/${event.id}`)
-    } catch (err: any) {
-      setError(err.message || 'Failed to create event')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to create event'
+      setError(message)
     }
 
-    setLoading(false)
-  }
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push('/')
+    setSubmitting(false)
   }
 
   const recurringOptions = [
@@ -102,28 +86,13 @@ export default function NewEventPage() {
     { value: 'biweekly', label: 'Every 2 weeks' },
   ]
 
+  if (loading) {
+    return <LoadingScreen />
+  }
+
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-2xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/" className="text-gray-400 hover:text-white">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </Link>
-              <h1 className="text-xl font-bold">Create Event</h1>
-            </div>
-            <Link href="/profile" className="text-gray-400 hover:text-white">
-              <div className="w-8 h-8 rounded-full bg-[#1DB954] flex items-center justify-center text-sm font-bold text-black">
-                {user?.email?.[0]?.toUpperCase() || '?'}
-              </div>
-            </Link>
-          </div>
-        </div>
-      </header>
+      <AppHeader user={user} onSignOut={signOut} backHref="/" />
 
       <main className="max-w-2xl mx-auto px-4 py-8">
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -266,10 +235,10 @@ export default function NewEventPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={submitting}
             className="w-full bg-[#1DB954] hover:bg-[#1ed760] text-black font-semibold py-3 rounded-lg transition-colors disabled:opacity-50"
           >
-            {loading ? 'Creating...' : 'Create Event'}
+            {submitting ? 'Creating...' : 'Create Event'}
           </button>
         </form>
       </main>
