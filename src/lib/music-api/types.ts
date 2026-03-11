@@ -1,4 +1,4 @@
-import type { Album, Track, MusicSource, Genre } from '../types'
+import type { Album, Track, MusicSource } from '../types'
 
 export interface MusicProvider {
   source: MusicSource
@@ -6,8 +6,6 @@ export interface MusicProvider {
   getAlbumTracks: (albumId: string) => Promise<Track[]>
   getAlbum: (albumId: string) => Promise<Album>
 }
-
-export type MusicProviderType = 'spotify' | 'apple' | 'youtube' | 'local'
 
 export interface UnifiedSearchResult {
   albums: Album[]

@@ -1,11 +1,17 @@
 import type { Album, Track, MusicSource } from '../types'
 import type { MusicProvider, UnifiedSearchResult } from './types'
-import { spotifyProvider } from './spotify'
 import { appleMusicProvider } from './apple'
 import { youtubeMusicProvider } from './youtube'
 
+const spotifyStubProvider: MusicProvider = {
+  source: 'spotify',
+  searchAlbums: async () => [],
+  getAlbumTracks: async () => [],
+  getAlbum: async () => { throw new Error('Spotify album search not available') },
+}
+
 const providers: Record<MusicSource, MusicProvider> = {
-  spotify: spotifyProvider,
+  spotify: spotifyStubProvider,
   apple: appleMusicProvider,
   youtube: youtubeMusicProvider,
   local: {
@@ -58,4 +64,3 @@ export function getAvailableProviders(): MusicSource[] {
 }
 
 export { providers }
-export { getTopGenres, getTopTracks } from './spotify'
