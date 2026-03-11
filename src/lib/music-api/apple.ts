@@ -1,18 +1,18 @@
-import type { Album, Track, MusicSource } from '../types'
+import type { Album, Track } from '../types'
 import type { MusicProvider } from './types'
 
 export const appleMusicProvider: MusicProvider = {
   source: 'apple',
 
-  async searchAlbums(query: string): Promise<Album[]> {
+  async searchAlbums(): Promise<Album[]> {
     throw new Error('Apple Music integration coming soon')
   },
 
-  async getAlbumTracks(albumId: string): Promise<Track[]> {
+  async getAlbumTracks(): Promise<Track[]> {
     throw new Error('Apple Music integration coming soon')
   },
 
-  async getAlbum(albumId: string): Promise<Album> {
+  async getAlbum(): Promise<Album> {
     throw new Error('Apple Music integration coming soon')
   },
 }

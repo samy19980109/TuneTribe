@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       console.error('Failed to decode state:', e)
       try {
         next = decodeURIComponent(encodedState)
-      } catch (e2) {
+      } catch {
         next = encodedState
       }
     }

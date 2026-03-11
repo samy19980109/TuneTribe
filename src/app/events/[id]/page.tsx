@@ -9,10 +9,12 @@ import LoadingScreen from '@/components/LoadingScreen'
 import MusicNoteIcon from '@/components/icons/MusicNoteIcon'
 import { useAuthStore } from '@/stores/useAuthStore'
 
+// Module-level singleton — stable reference, no re-creation on each render
+const supabase = createClient()
+
 export default function EventDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const supabase = createClient()
   const eventId = params.id as string
 
   const { user, loading: authLoading, fetchUser, signOut } = useAuthStore()

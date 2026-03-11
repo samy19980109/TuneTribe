@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import type { Event, Genre, City, Profile } from '@/lib/types'
@@ -10,8 +10,10 @@ import MusicNoteIcon from '@/components/icons/MusicNoteIcon'
 import { ensureProfile } from '@/lib/supabase/profile'
 import { useAuthStore } from '@/stores/useAuthStore'
 
+// Module-level singleton — stable reference, no re-creation on each render
+const supabase = createClient()
+
 export default function HomePage() {
-  const supabase = createClient()
   const { user, loading: authLoading, fetchUser, signOut } = useAuthStore()
 
   const [events, setEvents] = useState<Event[]>([])
@@ -27,7 +29,7 @@ export default function HomePage() {
   // Fetch auth state on mount
   useEffect(() => {
     fetchUser()
-  }, [])
+  }, [fetchUser])
 
   // Load genres and cities on mount
   useEffect(() => {
@@ -95,8 +97,10 @@ export default function HomePage() {
   }, [])
 
   // Helper: is a genre currently selected?
-  const isGenreSelected = (g: Genre) =>
-    selectedGenres.some(sg => sg.toLowerCase() === g.name.toLowerCase())
+  const isGenreSelected = useCallback(
+    (g: Genre) => selectedGenres.some(sg => sg.toLowerCase() === g.name.toLowerCase()),
+    [selectedGenres]
+  )
 
   // Fetch events when city/genre/cities/genres change
   useEffect(() => {
@@ -127,7 +131,7 @@ export default function HomePage() {
     if (cities.length > 0) {
       fetchEvents()
     }
-  }, [selectedCity, selectedGenres, cities, genres])
+  }, [selectedCity, selectedGenres, cities, genres, isGenreSelected])
 
   const toggleGenre = (genre: string) => {
     const normalizedGenre = genre.toLowerCase()

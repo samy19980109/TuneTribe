@@ -3,37 +3,50 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+/**
+ * Parse and store Spotify tokens from URL params.
+ * Returns an error string or null.
+ * Called once synchronously during component init (safe — runs only in browser, after hydration).
+ */
+function extractAndStoreTokens(): string | null {
+  if (typeof window === 'undefined') return null
+  const params = new URLSearchParams(window.location.search)
+  const tokenHash = params.get('token')
+  const refreshHash = params.get('refresh')
+
+  if (!tokenHash) return 'No token received'
+
+  try {
+    const token = atob(tokenHash.replace(/-/g, '+').replace(/_/g, '/'))
+    localStorage.setItem('spotify_access_token', token)
+
+    if (refreshHash) {
+      const refreshToken = atob(refreshHash.replace(/-/g, '+').replace(/_/g, '/'))
+      localStorage.setItem('spotify_refresh_token', refreshToken)
+    }
+
+    sessionStorage.setItem('just_authed', 'true')
+    return null
+  } catch (e) {
+    console.error('Failed to store token:', e)
+    return 'Failed to store authentication token'
+  }
+}
+
 export default function CallbackSuccess() {
   const router = useRouter()
-  const [error, setError] = useState<string | null>(null)
+  // Initialize error synchronously from URL params — no useEffect needed for detection
+  const [error] = useState<string | null>(() => extractAndStoreTokens())
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const tokenHash = params.get('token')
-    const refreshHash = params.get('refresh')
-    const next = params.get('next') || '/'
-
-    if (tokenHash) {
-      try {
-        const token = atob(tokenHash.replace(/-/g, '+').replace(/_/g, '/'))
-        localStorage.setItem('spotify_access_token', token)
-        
-        if (refreshHash) {
-          const refreshToken = atob(refreshHash.replace(/-/g, '+').replace(/_/g, '/'))
-          localStorage.setItem('spotify_refresh_token', refreshToken)
-        }
-        
-        sessionStorage.setItem('just_authed', 'true')
-        router.push(decodeURIComponent(next))
-      } catch (e) {
-        console.error('Failed to store token:', e)
-        setError('Failed to store authentication token')
-      }
-    } else {
-      console.error('No token received in callback')
-      setError('No token received')
+    if (error) {
+      console.error('Spotify callback error:', error)
+      return
     }
-  }, [router])
+    const params = new URLSearchParams(window.location.search)
+    const next = params.get('next') || '/'
+    router.push(decodeURIComponent(next))
+  }, [error, router])
 
   if (error) {
     return (
