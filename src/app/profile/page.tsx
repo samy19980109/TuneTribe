@@ -1,178 +1,66 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import type { Profile } from '@/lib/types'
+import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { ensureProfile } from '@/lib/supabase/profile'
+import AppHeader from '@/components/AppHeader'
+import LoadingScreen from '@/components/LoadingScreen'
+import type { Profile, TopArtist, TopTrack } from '@/lib/types'
 
 interface SpotifyData {
   genres: string[]
-  tracks: any[]
-  topArtists: any[]
+  tracks: TopTrack[]
+  topArtists: TopArtist[]
 }
 
 export default function ProfilePage() {
   const supabase = createClient()
-  const router = useRouter()
+  const { user, profile: authProfile, loading } = useRequireAuth()
+  const { signOut } = useAuthStore()
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState<any>(null)
-  const [showDropdown, setShowDropdown] = useState(false)
   const [syncingSpotify, setSyncingSpotify] = useState(false)
   const [syncedGenres, setSyncedGenres] = useState(false)
   const [spotifyData, setSpotifyData] = useState<SpotifyData | null>(null)
 
+  // Initialise local profile state from auth store and load persisted Spotify data
   useEffect(() => {
-    console.log('=== PROFILE RENDER ===')
-    console.log('profile:', profile)
-    console.log('profile?.top_genres:', profile?.top_genres)
-    console.log('spotifyData:', spotifyData)
-  }, [profile, spotifyData])
-
-  useEffect(() => {
-    const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
-        return
-      }
-      setUser(user)
-
-      // Try to get existing profile, create if doesn't exist
-      let { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      // If profile doesn't exist, create it
-      if (!profileData) {
-        const { data: newProfile, error: insertError } = await supabase
-          .from('profiles')
-          .insert({
-            id: user.id,
-            username: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
-            avatar_url: user.user_metadata?.avatar_url || null,
-          })
-          .select()
-          .single()
-
-        if (insertError) {
-          console.error('Error creating profile:', insertError)
-        }
-        profileData = newProfile
-      }
-
-      setProfile(profileData)
-      
-      // Load persisted top data into spotifyData state
-      if (profileData?.top_genres?.length || profileData?.top_artists?.length || profileData?.top_tracks?.length) {
-        setSpotifyData({
-          genres: profileData.top_genres || [],
-          topArtists: profileData.top_artists || [],
-          tracks: profileData.top_tracks || [],
-        })
-      }
-      
-      setLoading(false)
+    if (!authProfile) return
+    setProfile(authProfile)
+    if (authProfile.top_genres?.length || authProfile.top_artists?.length || authProfile.top_tracks?.length) {
+      setSpotifyData({
+        genres: authProfile.top_genres || [],
+        topArtists: authProfile.top_artists || [],
+        tracks: authProfile.top_tracks || [],
+      })
     }
-    init()
-  }, [])
+  }, [authProfile])
 
-  useEffect(() => {
-    if (user && typeof window !== 'undefined') {
-      const searchParams = new URLSearchParams(window.location.search)
-      if (searchParams.get('autoSync') === 'true') {
-        // Check if we just completed auth (don't re-trigger)
-        const justAuthed = sessionStorage.getItem('just_authed')
-        sessionStorage.removeItem('just_authed')
-        
-        if (justAuthed) {
-          window.history.replaceState({}, '', '/profile')
-          return
-        }
-        
-        window.history.replaceState({}, '', '/profile')
-        if (!syncingSpotify && !syncedGenres) {
-          syncSpotifyData()
-        }
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user])
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push('/')
-  }
-
-  const syncSpotifyData = async () => {
+  const syncSpotifyData = useCallback(async () => {
+    if (!user) return
     setSyncingSpotify(true)
-    console.log('=== SYNC SPOTIFY DATA START ===')
     try {
       const { getTopGenres, getTopTracks, getStoredAccessToken } = await import('@/lib/music-api/spotify-auth')
 
-      // Debug: check localStorage
-      console.log('All localStorage keys:', Object.keys(localStorage))
-      console.log('spotify_access_token in localStorage:', localStorage.getItem('spotify_access_token'))
-
-      // Check if authenticated with Spotify
       const token = getStoredAccessToken()
-      console.log('Stored token (from getStoredAccessToken):', token ? 'present' : 'null')
 
       if (!token) {
-        // Redirect to Spotify auth
-        console.log('No token, redirecting to Spotify auth...')
         const { redirectToSpotifyAuth } = await import('@/lib/music-api/spotify-auth')
         await redirectToSpotifyAuth('/profile?autoSync=true')
         return
       }
 
-      console.log('Token found, proceeding with sync...')
-      console.log('Token value:', token.substring(0, 20) + '...')
+      await ensureProfile(user)
 
-      // Ensure profile exists first
-      let { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      console.log('Existing profile:', existingProfile)
-
-      if (!existingProfile) {
-        console.log('Creating new profile...')
-        const { data: newProfile } = await supabase
-          .from('profiles')
-          .insert({
-            id: user.id,
-            username: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
-            avatar_url: user.user_metadata?.avatar_url || null,
-          })
-          .select()
-          .single()
-
-        existingProfile = newProfile
-      }
-
-      console.log('Fetching top genres from Spotify...')
       const genres = await getTopGenres()
-      console.log('Top Genres result:', genres)
 
-      console.log('Fetching top artists from Spotify...')
       const { getTopArtists } = await import('@/lib/music-api/spotify-auth')
       const topArtists = await getTopArtists()
-      console.log('Top Artists result:', topArtists)
 
-      console.log('Fetching top tracks from Spotify...')
       const tracks = await getTopTracks()
-      console.log('Top Tracks result:', tracks)
 
-      console.log('Saving genres to profile:', genres)
-      console.log('Saving tracks to profile:', tracks.length, 'tracks')
-
-      const updateResult = await supabase
+      await supabase
         .from('profiles')
         .update({
           top_genres: genres.slice(0, 20),
@@ -181,11 +69,7 @@ export default function ProfilePage() {
         })
         .eq('id', user.id)
 
-      console.log('Update result:', updateResult)
-
-      const spotifyData = { genres, tracks, topArtists }
-      console.log('Setting spotifyData state:', spotifyData)
-      setSpotifyData(spotifyData)
+      setSpotifyData({ genres, tracks, topArtists })
 
       // Refresh profile
       const { data: updatedProfile } = await supabase
@@ -194,36 +78,42 @@ export default function ProfilePage() {
         .eq('id', user.id)
         .single()
 
-      console.log('Updated profile:', updatedProfile)
       setProfile(updatedProfile)
       setSyncedGenres(true)
       setTimeout(() => setSyncedGenres(false), 3000)
-      console.log('=== SYNC SPOTIFY DATA COMPLETE ===')
     } catch (err) {
       console.error('Error syncing Spotify data:', err)
     }
     setSyncingSpotify(false)
-  }
+  }, [user, supabase])
+
+  useEffect(() => {
+    if (user && typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search)
+      if (searchParams.get('autoSync') === 'true') {
+        const justAuthed = sessionStorage.getItem('just_authed')
+        sessionStorage.removeItem('just_authed')
+
+        if (justAuthed) {
+          window.history.replaceState({}, '', '/profile')
+          return
+        }
+
+        window.history.replaceState({}, '', '/profile')
+        if (!syncingSpotify && !syncedGenres) {
+          syncSpotifyData()
+        }
+      }
+    }
+  }, [user, syncSpotifyData, syncingSpotify, syncedGenres])
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-white">Loading...</div>
-      </div>
-    )
+    return <LoadingScreen />
   }
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="text-xl font-bold">TuneTribe</Link>
-            <Link href="/" className="text-gray-400 hover:text-white text-sm">← Back</Link>
-          </div>
-        </div>
-      </header>
+      <AppHeader user={user} onSignOut={signOut} backHref="/" />
 
       <main className="max-w-4xl mx-auto px-4 py-8">
         {/* Profile Header */}
@@ -276,7 +166,7 @@ export default function ProfilePage() {
           <h2 className="text-lg font-semibold mb-4">Your Top Genres</h2>
           {spotifyData?.genres && spotifyData.genres.length > 0 ? (
             <div className="flex flex-wrap gap-2">
-              {spotifyData.genres.map((genre, index) => (
+              {spotifyData.genres.map((genre) => (
                 <span
                   key={genre}
                   className="px-4 py-2 bg-[#1DB954]/20 text-[#1DB954] rounded-full text-sm font-medium"
@@ -286,7 +176,7 @@ export default function ProfilePage() {
               ))}
             </div>
           ) : (
-            <p className="text-gray-400 text-sm">No genres synced yet. Click "Sync Top Data" to fetch your top genres from Spotify.</p>
+            <p className="text-gray-400 text-sm">No genres synced yet. Click &quot;Sync Top Data&quot; to fetch your top genres from Spotify.</p>
           )}
         </div>
 
@@ -295,7 +185,7 @@ export default function ProfilePage() {
           <h2 className="text-lg font-semibold mb-4">Your Top Artists</h2>
           {spotifyData?.topArtists && spotifyData.topArtists.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-4">
-              {spotifyData.topArtists.slice(0, 10).map((artist: any) => (
+              {spotifyData.topArtists.slice(0, 10).map((artist: TopArtist) => (
                 <div key={artist.id} className="text-center">
                   <div className="w-20 h-20 mx-auto rounded-full overflow-hidden bg-gray-800 mb-2">
                     {artist.image ? (
@@ -311,7 +201,7 @@ export default function ProfilePage() {
               ))}
             </div>
           ) : (
-            <p className="text-gray-400 text-sm">No artists synced yet. Click "Sync Top Data" to fetch your top artists from Spotify.</p>
+            <p className="text-gray-400 text-sm">No artists synced yet. Click &quot;Sync Top Data&quot; to fetch your top artists from Spotify.</p>
           )}
         </div>
 
@@ -320,7 +210,7 @@ export default function ProfilePage() {
           <h2 className="text-lg font-semibold mb-4">Your Top Tracks</h2>
           {spotifyData?.tracks && spotifyData.tracks.length > 0 ? (
             <div className="space-y-3">
-              {spotifyData.tracks.slice(0, 10).map((track: any, index: number) => (
+              {spotifyData.tracks.slice(0, 10).map((track: TopTrack, index: number) => (
                 <div key={track.id || index} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-800">
                   <span className="text-gray-500 w-6 text-center">{index + 1}</span>
                   <div className="w-12 h-12 rounded overflow-hidden bg-gray-800 flex-shrink-0">
@@ -342,7 +232,7 @@ export default function ProfilePage() {
               ))}
             </div>
           ) : (
-            <p className="text-gray-400 text-sm">No tracks synced yet. Click "Sync Top Data" to fetch your top tracks from Spotify.</p>
+            <p className="text-gray-400 text-sm">No tracks synced yet. Click &quot;Sync Top Data&quot; to fetch your top tracks from Spotify.</p>
           )}
         </div>
 
@@ -398,7 +288,7 @@ export default function ProfilePage() {
 
         {/* Logout Button */}
         <button
-          onClick={handleLogout}
+          onClick={signOut}
           className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium py-3 px-4 rounded-lg transition-colors border border-red-500/30"
         >
           Sign Out
