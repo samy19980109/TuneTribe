@@ -4,137 +4,63 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import type { Event, Genre, City, Profile } from '@/lib/types'
-
-function ProfileMenu({ user, profile, onLogout }: { user: any, profile: Profile | null, onLogout: () => void }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const needsSync = profile && (!profile.top_genres || profile.top_genres.length === 0)
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 hover:bg-gray-800 px-3 py-2 rounded-lg transition-colors"
-      >
-        <div className="relative">
-          <div className="w-8 h-8 rounded-full bg-[#1DB954] flex items-center justify-center text-sm font-bold text-black">
-            {profile?.username?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?'}
-          </div>
-          {needsSync && (
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full border-2 border-gray-900"></div>
-          )}
-        </div>
-        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-gray-900 border border-gray-800 rounded-lg shadow-xl py-1 z-50">
-          <Link
-            href="/profile"
-            className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
-            onClick={() => setIsOpen(false)}
-          >
-            Profile
-            {needsSync && <span className="ml-2 text-xs text-yellow-400">•</span>}
-          </Link>
-          <Link
-            href="/events/new"
-            className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
-            onClick={() => setIsOpen(false)}
-          >
-            Create Event
-          </Link>
-          <hr className="my-1 border-gray-800" />
-          <button
-            onClick={() => {
-              setIsOpen(false)
-              onLogout()
-            }}
-            className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-800 transition-colors"
-          >
-            Sign Out
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
+import AppHeader from '@/components/AppHeader'
+import LoadingScreen from '@/components/LoadingScreen'
+import MusicNoteIcon from '@/components/icons/MusicNoteIcon'
+import { ensureProfile } from '@/lib/supabase/profile'
+import { useAuthStore } from '@/stores/useAuthStore'
 
 export default function HomePage() {
   const supabase = createClient()
+  const { user, loading: authLoading, fetchUser, signOut } = useAuthStore()
+
   const [events, setEvents] = useState<Event[]>([])
   const [genres, setGenres] = useState<Genre[]>([])
   const [cities, setCities] = useState<City[]>([])
   const [selectedGenres, setSelectedGenres] = useState<string[]>([])
-  const [selectedCity, setSelectedCity] = useState('Toronto')
-  const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState<any>(null)
+  const [selectedCity, setSelectedCity] = useState('')
+  const [dataLoading, setDataLoading] = useState(true)
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [menuOpen, setMenuOpen] = useState(false)
   const [genreDropdownOpen, setGenreDropdownOpen] = useState(false)
   const genreDropdownRef = useRef<HTMLDivElement>(null)
 
+  // Fetch auth state on mount
+  useEffect(() => {
+    fetchUser()
+  }, [])
+
+  // Load genres and cities on mount
   useEffect(() => {
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
-
       const [genresRes, citiesRes] = await Promise.all([
         supabase.from('genres').select('*'),
-        supabase.from('cities').select('*').eq('is_active', true)
+        supabase.from('cities').select('*').eq('is_active', true),
       ])
-
       setGenres(genresRes.data || [])
-      setCities(citiesRes.data || [])
-
-      if (user) {
-        let { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle()
-
-        // Create profile if doesn't exist
-        if (!profileData) {
-          const { data: newProfile } = await supabase
-            .from('profiles')
-            .insert({
-              id: user.id,
-              username: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
-              avatar_url: user.user_metadata?.avatar_url || null,
-            })
-            .select()
-            .single()
-          
-          profileData = newProfile
-        }
-
-        setProfile(profileData)
-
-        if (profileData?.top_genres?.length) {
-          setSelectedGenres(profileData.top_genres.slice(0, 20))
-        }
+      const loadedCities: City[] = citiesRes.data || []
+      setCities(loadedCities)
+      if (loadedCities.length > 0) {
+        setSelectedCity(loadedCities[0].slug)
       }
-
-      setLoading(false)
+      setDataLoading(false)
     }
     init()
   }, [])
 
-  // Refresh profile data when page becomes visible (e.g., after syncing in profile)
+  // Ensure profile exists and seed genre selections when user is available
+  useEffect(() => {
+    if (!user) return
+    const initProfile = async () => {
+      const profileData = await ensureProfile(user)
+      setProfile(profileData)
+      if (profileData.top_genres?.length) {
+        setSelectedGenres(profileData.top_genres.slice(0, 20))
+      }
+    }
+    initProfile()
+  }, [user])
+
+  // Refresh profile data when page becomes visible (e.g. after syncing in profile)
   useEffect(() => {
     const handleVisibility = async () => {
       if (document.visibilityState === 'visible' && user) {
@@ -143,7 +69,7 @@ export default function HomePage() {
           .select('*')
           .eq('id', user.id)
           .maybeSingle()
-        
+
         if (profileData) {
           setProfile(profileData)
           if (profileData.top_genres?.length && selectedGenres.length === 0) {
@@ -152,12 +78,12 @@ export default function HomePage() {
         }
       }
     }
-    
+
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [user, selectedGenres.length])
 
-  // Genre dropdown click outside handler
+  // Genre dropdown click-outside handler
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (genreDropdownRef.current && !genreDropdownRef.current.contains(event.target as Node)) {
@@ -168,6 +94,11 @@ export default function HomePage() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Helper: is a genre currently selected?
+  const isGenreSelected = (g: Genre) =>
+    selectedGenres.some(sg => sg.toLowerCase() === g.name.toLowerCase())
+
+  // Fetch events when city/genre/cities/genres change
   useEffect(() => {
     const fetchEvents = async () => {
       const cityId = cities.find(c => c.slug === selectedCity)?.id || cities[0]?.id
@@ -181,9 +112,9 @@ export default function HomePage() {
         .order('date', { ascending: true })
 
       if (selectedGenres.length > 0) {
-        const genreIds = genres.filter(g => 
-          selectedGenres.some(sg => sg.toLowerCase() === g.name.toLowerCase())
-        ).map(g => g.id)
+        const genreIds = genres
+          .filter(g => isGenreSelected(g))
+          .map(g => g.id)
         if (genreIds.length > 0) {
           query = query.in('genre_id', genreIds)
         }
@@ -208,8 +139,8 @@ export default function HomePage() {
     })
   }
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
+  const handleSignOut = async () => {
+    await signOut()
     window.location.href = '/'
   }
 
@@ -219,46 +150,15 @@ export default function HomePage() {
   }
 
   const needsGenreSync = user && profile && (!profile.top_genres || profile.top_genres.length === 0)
+  const currentCityName = cities.find(c => c.slug === selectedCity)?.name || cities[0]?.name || ''
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-white">Loading...</div>
-      </div>
-    )
+  if (authLoading || dataLoading) {
+    return <LoadingScreen />
   }
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="text-2xl font-bold">TuneTribe</Link>
-
-            <div className="flex items-center gap-3">
-              {user ? (
-                <ProfileMenu user={user} profile={profile} onLogout={handleLogout} />
-              ) : (
-                <div className="flex items-center gap-3">
-                  <Link
-                    href="/login"
-                    className="text-gray-300 hover:text-white text-sm font-medium px-3 py-2"
-                  >
-                    Sign In
-                  </Link>
-                  <Link
-                    href="/login"
-                    className="bg-[#1DB954] hover:bg-[#1ed760] text-black text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-                  >
-                    Get Started
-                  </Link>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppHeader user={user} onSignOut={handleSignOut} />
 
       {/* Genre Sync Banner */}
       {needsGenreSync && (
@@ -303,7 +203,7 @@ export default function HomePage() {
 
             {/* Genre Dropdown */}
             <div className="relative flex-shrink-0" ref={genreDropdownRef}>
-              <button 
+              <button
                 onClick={() => setGenreDropdownOpen(!genreDropdownOpen)}
                 className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white flex items-center gap-2 hover:bg-gray-700 transition-colors"
               >
@@ -342,7 +242,7 @@ export default function HomePage() {
                           key={genre.id}
                           onClick={() => toggleGenre(genre.name)}
                           className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                            selectedGenres.some(sg => sg.toLowerCase() === genre.name.toLowerCase())
+                            isGenreSelected(genre)
                               ? 'bg-[#1DB954] text-black'
                               : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                           }`}
@@ -364,7 +264,7 @@ export default function HomePage() {
                     key={genre.id}
                     onClick={() => toggleGenre(genre.name)}
                     className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
-                      selectedGenres.some(sg => sg.toLowerCase() === genre.name.toLowerCase())
+                      isGenreSelected(genre)
                         ? 'bg-[#1DB954] text-black'
                         : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                     }`}
@@ -390,17 +290,13 @@ export default function HomePage() {
         {/* Events Section */}
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">
-              {selectedCity === 'toronto' ? 'Toronto' : selectedCity}
-            </h2>
+            <h2 className="text-lg font-semibold">{currentCityName}</h2>
             <span className="text-sm text-gray-500">{events.length} events</span>
           </div>
 
           {events.length === 0 ? (
             <div className="text-center py-16 bg-gray-900/50 rounded-xl">
-              <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-              </svg>
+              <MusicNoteIcon className="w-16 h-16 mx-auto text-gray-600 mb-4" />
               <p className="text-gray-400 mb-4">No listening events found</p>
               {user && (
                 <Link
@@ -428,9 +324,7 @@ export default function HomePage() {
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <svg className="w-12 h-12 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                        </svg>
+                        <MusicNoteIcon className="w-12 h-12 text-gray-700" />
                       </div>
                     )}
                     {event.genre && (
