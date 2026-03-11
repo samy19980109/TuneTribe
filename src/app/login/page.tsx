@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
@@ -13,6 +12,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState<string | null>(null)
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,7 +26,7 @@ export default function LoginPage() {
           password,
         })
         if (error) throw error
-        alert('Check your email for the confirmation link!')
+        setSuccess('Check your email for the confirmation link!')
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
@@ -35,8 +35,8 @@ export default function LoginPage() {
         if (error) throw error
         router.push('/')
       }
-    } catch (err: any) {
-      setError(err.message || 'Authentication failed')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
       setLoading(false)
     }
@@ -52,9 +52,9 @@ export default function LoginPage() {
         },
       })
       if (error) throw error
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Auth error:', err)
-      setError(err.message || 'Authentication failed')
+      setError(err instanceof Error ? err.message : 'An error occurred')
       setLoading(false)
     }
   }
@@ -69,9 +69,9 @@ export default function LoginPage() {
         },
       })
       if (error) throw error
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Auth error:', err)
-      setError(err.message || 'Authentication failed')
+      setError(err instanceof Error ? err.message : 'An error occurred')
       setLoading(false)
     }
   }
@@ -87,6 +87,12 @@ export default function LoginPage() {
         {error && (
           <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
             {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="bg-green-900/30 border border-green-500 text-green-400 rounded-lg p-3 text-sm">
+            {success}
           </div>
         )}
 
