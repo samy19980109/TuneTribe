@@ -106,14 +106,17 @@ export default function HomePage() {
   useEffect(() => {
     const fetchEvents = async () => {
       const cityId = cities.find(c => c.slug === selectedCity)?.id || cities[0]?.id
-      if (!cityId) return
 
+      const today = new Date().toISOString().split('T')[0]
       let query = supabase
         .from('events')
-        .select('*, city:cities(*), genre:genres(*), organizer:profiles(*)')
-        .eq('city_id', cityId)
-        .gte('date', new Date().toISOString().split('T')[0])
-        .order('date', { ascending: true })
+        .select('*, city:cities(*), genre:genres(*), organizer:profiles!events_organizer_id_fkey(*)')
+        .or(`date.gte.${today},date.is.null`)
+        .order('date', { ascending: true, nullsFirst: false })
+
+      if (cityId) {
+        query = query.or(`city_id.eq.${cityId},city_id.is.null`)
+      }
 
       if (selectedGenres.length > 0) {
         const genreIds = genres

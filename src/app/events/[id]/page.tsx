@@ -27,34 +27,37 @@ export default function EventDetailPage() {
     fetchUser()
   }, [fetchUser])
 
+  // Fetch the event immediately — does not depend on auth state
   useEffect(() => {
-    const init = async () => {
+    const fetchEvent = async () => {
       const { data: eventData } = await supabase
         .from('events')
-        .select('*, city:cities(*), genre:genres(*), organizer:profiles(*)')
+        .select('*, city:cities(*), genre:genres(*), organizer:profiles!events_organizer_id_fkey(*)')
         .eq('id', eventId)
-        .single()
+        .maybeSingle()
 
       setEvent(eventData)
-
-      if (user && eventData) {
-        const { data: attendee } = await supabase
-          .from('event_attendees')
-          .select('*')
-          .eq('event_id', eventId)
-          .eq('user_id', user.id)
-          .single()
-
-        if (attendee) {
-          setIsAttending(true)
-        }
-      }
-
       setLoading(false)
     }
-    if (!authLoading) {
-      init()
+    fetchEvent()
+  }, [eventId])
+
+  // Check attendance only after auth has resolved and we have a user
+  useEffect(() => {
+    if (authLoading || !user) return
+    const checkAttendance = async () => {
+      const { data: attendee } = await supabase
+        .from('event_attendees')
+        .select('*')
+        .eq('event_id', eventId)
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (attendee) {
+        setIsAttending(true)
+      }
     }
+    checkAttendance()
   }, [eventId, user, authLoading])
 
   const handleRSVP = async () => {
@@ -79,7 +82,7 @@ export default function EventDetailPage() {
     }
   }
 
-  if (loading || authLoading) {
+  if (loading) {
     return <LoadingScreen />
   }
 
