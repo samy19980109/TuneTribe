@@ -38,7 +38,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setVolume: (volume) => set({ volume }),
 
   playPreview: (url) => {
-    const { previewAudio, isPlaying } = get()
+    const { previewAudio } = get()
     
     if (previewAudio) {
       previewAudio.pause()
