@@ -3,40 +3,11 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import Link from 'next/link'
-import type { Event, Profile } from '@/lib/types'
-
-function Header({ user, onLogout }: { user: any, onLogout: () => void }) {
-  return (
-    <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-50">
-      <div className="max-w-4xl mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="text-gray-400 hover:text-white">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </Link>
-            <Link href="/" className="text-xl font-bold">TuneTribe</Link>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/events/new"
-              className="text-sm bg-[#1DB954] hover:bg-[#1ed760] text-black px-3 py-1.5 rounded-lg font-medium"
-            >
-              Create Event
-            </Link>
-            <Link href="/profile" className="text-gray-400 hover:text-white">
-              <div className="w-8 h-8 rounded-full bg-[#1DB954] flex items-center justify-center text-sm font-bold text-black">
-                {user?.email?.[0]?.toUpperCase() || '?'}
-              </div>
-            </Link>
-          </div>
-        </div>
-      </div>
-    </header>
-  )
-}
+import type { Event } from '@/lib/types'
+import AppHeader from '@/components/AppHeader'
+import LoadingScreen from '@/components/LoadingScreen'
+import MusicNoteIcon from '@/components/icons/MusicNoteIcon'
+import { useAuthStore } from '@/stores/useAuthStore'
 
 export default function EventDetailPage() {
   const params = useParams()
@@ -44,17 +15,18 @@ export default function EventDetailPage() {
   const supabase = createClient()
   const eventId = params.id as string
 
+  const { user, loading: authLoading, fetchUser, signOut } = useAuthStore()
+
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
-  const [rsvpStatus, setRsvpStatus] = useState<'going' | 'maybe' | 'not_going'>('going')
-  const [user, setUser] = useState<any>(null)
   const [isAttending, setIsAttending] = useState(false)
 
   useEffect(() => {
-    const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
+    fetchUser()
+  }, [fetchUser])
 
+  useEffect(() => {
+    const init = async () => {
       const { data: eventData } = await supabase
         .from('events')
         .select('*, city:cities(*), genre:genres(*), organizer:profiles(*)')
@@ -73,14 +45,15 @@ export default function EventDetailPage() {
 
         if (attendee) {
           setIsAttending(true)
-          setRsvpStatus(attendee.rsvp_status)
         }
       }
 
       setLoading(false)
     }
-    init()
-  }, [eventId])
+    if (!authLoading) {
+      init()
+    }
+  }, [eventId, user, authLoading])
 
   const handleRSVP = async () => {
     if (!user) {
@@ -89,35 +62,23 @@ export default function EventDetailPage() {
     }
 
     if (isAttending) {
-      await supabase
+      const { error } = await supabase
         .from('event_attendees')
         .delete()
-        .eq('event_id', eventId)
-        .eq('user_id', user.id)
+        .match({ event_id: eventId, user_id: user.id })
+      if (error) { console.error('RSVP remove failed:', error); return }
       setIsAttending(false)
     } else {
-      await supabase
+      const { error } = await supabase
         .from('event_attendees')
-        .insert({
-          event_id: eventId,
-          user_id: user.id,
-          rsvp_status: rsvpStatus,
-        })
+        .insert({ event_id: eventId, user_id: user.id, rsvp_status: 'going' })
+      if (error) { console.error('RSVP add failed:', error); return }
       setIsAttending(true)
     }
   }
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push('/')
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-white">Loading...</div>
-      </div>
-    )
+  if (loading || authLoading) {
+    return <LoadingScreen />
   }
 
   if (!event) {
@@ -130,7 +91,7 @@ export default function EventDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <Header user={user} onLogout={handleLogout} />
+      <AppHeader user={user} onSignOut={signOut} backHref="/" />
 
       <main className="max-w-4xl mx-auto px-4 py-8">
         {/* Cover Image */}
@@ -143,9 +104,7 @@ export default function EventDetailPage() {
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              <svg className="w-20 h-20 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-              </svg>
+              <MusicNoteIcon className="w-20 h-20 text-gray-700" />
             </div>
           )}
         </div>
