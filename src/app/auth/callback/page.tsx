@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { ensureProfile } from '@/lib/supabase/profile'
 
 export default function AuthCallback() {
   const router = useRouter()
@@ -19,21 +20,7 @@ export default function AuthCallback() {
       }
 
       if (session) {
-        // Create profile if doesn't exist
-        const { data: existingProfile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .maybeSingle()
-
-        if (!existingProfile) {
-          await supabase.from('profiles').insert({
-            id: session.user.id,
-            username: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
-            avatar_url: session.user.user_metadata?.avatar_url || null,
-          })
-        }
-
+        await ensureProfile(session.user)
         router.push('/')
       } else {
         router.push('/login')

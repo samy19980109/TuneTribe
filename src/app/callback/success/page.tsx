@@ -13,26 +13,17 @@ export default function CallbackSuccess() {
     const refreshHash = params.get('refresh')
     const next = params.get('next') || '/'
 
-    console.log('=== CALLBACK SUCCESS PAGE ===')
-    console.log('Token hash:', tokenHash ? 'present' : 'null')
-    console.log('Refresh hash:', refreshHash ? 'present' : 'null')
-    console.log('Next path:', next)
-
     if (tokenHash) {
       try {
         const token = atob(tokenHash.replace(/-/g, '+').replace(/_/g, '/'))
-        console.log('Decoded token (first 20 chars):', token.substring(0, 20) + '...')
         localStorage.setItem('spotify_access_token', token)
-        console.log('Access token stored in localStorage')
         
         if (refreshHash) {
           const refreshToken = atob(refreshHash.replace(/-/g, '+').replace(/_/g, '/'))
           localStorage.setItem('spotify_refresh_token', refreshToken)
-          console.log('Refresh token stored in localStorage')
         }
         
         sessionStorage.setItem('just_authed', 'true')
-        console.log('Redirecting to:', decodeURIComponent(next))
         router.push(decodeURIComponent(next))
       } catch (e) {
         console.error('Failed to store token:', e)

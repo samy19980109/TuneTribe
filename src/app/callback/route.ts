@@ -3,21 +3,16 @@ import { getAccessTokenFromCode } from '@/lib/music-api/spotify-auth'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
-  console.log('Callback URL:', request.url)
   const code = searchParams.get('code')
   const encodedState = searchParams.get('state')
-  console.log('Code:', code ? 'present' : 'missing')
-  console.log('State:', encodedState)
   
   let next = '/'
   let verifier: string | undefined
   
   if (encodedState) {
     try {
-      console.log('Decoding state...')
       const urlSafeBase64 = encodedState.replace(/-/g, '+').replace(/_/g, '/')
       const decoded = JSON.parse(atob(urlSafeBase64))
-      console.log('Decoded state:', decoded)
       next = decoded.next || '/'
       verifier = decoded.verifier
     } catch (e) {
@@ -30,8 +25,6 @@ export async function GET(request: Request) {
     }
   }
 
-  console.log('Redirecting to:', `${origin}${next}`)
-
   // Ensure next starts with a slash if it's not a full URL
   if (next && !next.startsWith('http') && !next.startsWith('/')) {
     next = '/' + next
@@ -40,8 +33,6 @@ export async function GET(request: Request) {
   if (code) {
     try {
       const tokenData = await getAccessTokenFromCode(code, verifier)
-
-      console.log('Token obtained, redirecting...')
 
       // Redirect to a client-side page that will store the token in localStorage
       // Pass both access_token and refresh_token
