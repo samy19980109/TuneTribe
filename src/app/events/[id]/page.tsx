@@ -8,6 +8,7 @@ import AppHeader from '@/components/AppHeader'
 import LoadingScreen from '@/components/LoadingScreen'
 import MusicNoteIcon from '@/components/icons/MusicNoteIcon'
 import { useAuthStore } from '@/stores/useAuthStore'
+import SongVotingSection from '@/components/voting/SongVotingSection'
 
 // Module-level singleton — stable reference, no re-creation on each render
 const supabase = createClient()
@@ -218,6 +219,9 @@ export default function EventDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Song Voting */}
+        <SongVotingSection eventId={eventId} />
       </main>
     </div>
   )

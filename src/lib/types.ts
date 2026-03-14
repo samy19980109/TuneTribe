@@ -105,6 +105,22 @@ export interface Album {
   created_at: string
 }
 
+export interface SongNomination {
+  id: string
+  event_id: string
+  nominated_by: string | null
+  spotify_track_id: string
+  title: string
+  artist: string
+  album: string
+  album_art: string
+  duration: number
+  preview_url: string | null
+  vote_count: number
+  created_at: string
+  nominator?: Profile
+}
+
 export interface UserTopGenres {
   genres: string[]
   tracks: Track[]
