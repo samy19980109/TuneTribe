@@ -101,12 +101,16 @@ function parseMultiValue(params: URLSearchParams, key: string): string[] {
 }
 
 function buildSpotifyQuery(params: URLSearchParams): string {
+  // Spotify search only supports: artist:, album:, track:, year:, isrc:, upc:
+  // genre: and tag: are NOT valid — pass genres as plain text keywords
   const parts: string[] = []
 
   const q = params.get('q')
   if (q?.trim()) parts.push(q.trim())
 
-  parseMultiValue(params, 'genre').forEach(g => parts.push(`genre:${g}`))
+  // Genres as plain text (Spotify doesn't support genre: modifier in search)
+  parseMultiValue(params, 'genre').forEach(g => parts.push(g))
+
   parseMultiValue(params, 'artist').forEach(a => parts.push(`artist:${a}`))
 
   const album = params.get('album')
@@ -122,7 +126,8 @@ function buildSpotifyQuery(params: URLSearchParams): string {
     parts.push(`year:${yearTo}`)
   }
 
-  parseMultiValue(params, 'tag').forEach(t => parts.push(`tag:${t}`))
+  // Tags as plain text (Spotify doesn't support tag: modifier)
+  parseMultiValue(params, 'tag').forEach(t => parts.push(t))
 
   return parts.join(' ')
 }
