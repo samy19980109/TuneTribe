@@ -18,6 +18,7 @@ interface SpotifyImage {
 interface SpotifyAlbum {
   name: string
   images: SpotifyImage[]
+  release_date: string
 }
 
 interface SpotifyTrack {
@@ -27,6 +28,7 @@ interface SpotifyTrack {
   album: SpotifyAlbum
   duration_ms: number
   preview_url: string | null
+  popularity: number
 }
 
 interface SpotifySearchResponse {
@@ -71,10 +73,42 @@ async function getClientCredentialsToken(): Promise<string> {
   return data.access_token
 }
 
-export async function GET(request: NextRequest) {
-  const query = request.nextUrl.searchParams.get('q')
+function buildSpotifyQuery(params: URLSearchParams): string {
+  const parts: string[] = []
 
-  if (!query || query.trim().length === 0) {
+  const q = params.get('q')
+  if (q?.trim()) parts.push(q.trim())
+
+  const genre = params.get('genre')
+  if (genre?.trim()) parts.push(`genre:${genre.trim()}`)
+
+  const artist = params.get('artist')
+  if (artist?.trim()) parts.push(`artist:${artist.trim()}`)
+
+  const album = params.get('album')
+  if (album?.trim()) parts.push(`album:${album.trim()}`)
+
+  const yearFrom = params.get('yearFrom')
+  const yearTo = params.get('yearTo')
+  if (yearFrom && yearTo) {
+    parts.push(`year:${yearFrom}-${yearTo}`)
+  } else if (yearFrom) {
+    parts.push(`year:${yearFrom}`)
+  } else if (yearTo) {
+    parts.push(`year:${yearTo}`)
+  }
+
+  const tag = params.get('tag')
+  if (tag?.trim()) parts.push(`tag:${tag.trim()}`)
+
+  return parts.join(' ')
+}
+
+export async function GET(request: NextRequest) {
+  const query = buildSpotifyQuery(request.nextUrl.searchParams)
+  const sort = request.nextUrl.searchParams.get('sort')
+
+  if (!query) {
     return NextResponse.json({ tracks: [] })
   }
 
@@ -82,7 +116,7 @@ export async function GET(request: NextRequest) {
     const token = await getClientCredentialsToken()
 
     const res = await fetch(
-      `https://api.spotify.com/v1/search?type=track&q=${encodeURIComponent(query)}&limit=10`,
+      `https://api.spotify.com/v1/search?type=track&q=${encodeURIComponent(query)}&limit=20`,
       { headers: { Authorization: `Bearer ${token}` } }
     )
 
@@ -103,7 +137,16 @@ export async function GET(request: NextRequest) {
       previewUrl: track.preview_url,
       trackNumber: 0,
       externalId: track.id,
+      popularity: track.popularity,
+      releaseDate: track.album.release_date,
     }))
+
+    // Sort by popularity if requested
+    if (sort === 'popularity_desc') {
+      tracks.sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0))
+    } else if (sort === 'popularity_asc') {
+      tracks.sort((a, b) => (a.popularity ?? 0) - (b.popularity ?? 0))
+    }
 
     return NextResponse.json({ tracks })
   } catch (error) {

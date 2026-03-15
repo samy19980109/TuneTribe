@@ -3,11 +3,13 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import Link from 'next/link'
 import type { Genre } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useAuthStore } from '@/stores/useAuthStore'
 import AppHeader from '@/components/AppHeader'
 import LoadingScreen from '@/components/LoadingScreen'
+import HostSongCurator from '@/components/voting/HostSongCurator'
 
 const supabase = createClient()
 
@@ -17,6 +19,11 @@ export default function NewEventPage() {
   const { user, loading } = useRequireAuth()
   const { signOut } = useAuthStore()
 
+  // Step state
+  const [step, setStep] = useState<1 | 2>(1)
+  const [createdEventId, setCreatedEventId] = useState<string | null>(null)
+
+  // Form fields
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [venue, setVenue] = useState('')
@@ -69,7 +76,8 @@ export default function NewEventPage() {
 
       if (eventError) throw eventError
 
-      router.push(`/events/${event.id}`)
+      setCreatedEventId(event.id)
+      setStep(2)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to create event'
       setError(message)
@@ -95,152 +103,213 @@ export default function NewEventPage() {
       <AppHeader user={user} onSignOut={signOut} backHref="/" />
 
       <main className="max-w-2xl mx-auto px-4 py-8">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium mb-2">Event Title *</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              placeholder="e.g., Saturday Night Vinyl Listening"
-              className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#1DB954]"
-            />
+        {/* Step indicator */}
+        <div className="flex items-center gap-3 mb-8">
+          <div className="flex items-center gap-2">
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+              step === 1 ? 'bg-[#1DB954] text-black' : 'bg-white/10 text-gray-400'
+            }`}>
+              {step > 1 ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : '1'}
+            </div>
+            <span className={`text-sm font-medium ${step === 1 ? 'text-white' : 'text-gray-500'}`}>
+              Event Details
+            </span>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Description</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              placeholder="What can attendees expect?"
-              className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#1DB954] resize-none"
-            />
+          <div className="w-8 h-px bg-white/10" />
+          <div className="flex items-center gap-2">
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+              step === 2 ? 'bg-[#1DB954] text-black' : 'bg-white/10 text-gray-500'
+            }`}>
+              2
+            </div>
+            <span className={`text-sm font-medium ${step === 2 ? 'text-white' : 'text-gray-500'}`}>
+              Curate Song Pool
+            </span>
           </div>
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">Genre</label>
-            <select
-              value={genreId}
-              onChange={(e) => setGenreId(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#1DB954]"
-            >
-              <option value="">Select a genre</option>
-              {genres.map((genre) => (
-                <option key={genre.id} value={genre.id}>{genre.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Venue *</label>
-            <input
-              type="text"
-              value={venue}
-              onChange={(e) => setVenue(e.target.value)}
-              required
-              placeholder="e.g., Someone's Living Room, Community Center"
-              className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#1DB954]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Address</label>
-            <input
-              type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="Full address"
-              className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#1DB954]"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+        {/* Step 1: Event Details Form */}
+        {step === 1 && (
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium mb-2">Date</label>
+              <label className="block text-sm font-medium mb-2">Event Title *</label>
               <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#1DB954]"
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
+                placeholder="e.g., Saturday Night Vinyl Listening"
+                className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#1DB954]"
               />
             </div>
+
             <div>
-              <label className="block text-sm font-medium mb-2">Time</label>
-              <input
-                type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#1DB954]"
+              <label className="block text-sm font-medium mb-2">Description</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                placeholder="What can attendees expect?"
+                className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#1DB954] resize-none"
               />
             </div>
-          </div>
 
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="isRecurring"
-              checked={isRecurring}
-              onChange={(e) => setIsRecurring(e.target.checked)}
-              className="w-4 h-4 accent-[#1DB954]"
-            />
-            <label htmlFor="isRecurring" className="text-sm font-medium">
-              This is a recurring event
-            </label>
-          </div>
-
-          {isRecurring && (
             <div>
-              <label className="block text-sm font-medium mb-2">Recurring Pattern</label>
+              <label className="block text-sm font-medium mb-2">Genre</label>
               <select
-                value={recurringPattern}
-                onChange={(e) => setRecurringPattern(e.target.value)}
+                value={genreId}
+                onChange={(e) => setGenreId(e.target.value)}
                 className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#1DB954]"
               >
-                <option value="">Select pattern</option>
-                {recurringOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                <option value="">Select a genre</option>
+                {genres.map((genre) => (
+                  <option key={genre.id} value={genre.id}>{genre.name}</option>
                 ))}
               </select>
             </div>
-          )}
 
+            <div>
+              <label className="block text-sm font-medium mb-2">Venue *</label>
+              <input
+                type="text"
+                value={venue}
+                onChange={(e) => setVenue(e.target.value)}
+                required
+                placeholder="e.g., Someone's Living Room, Community Center"
+                className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#1DB954]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Address</label>
+              <input
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Full address"
+                className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#1DB954]"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Date</label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#1DB954]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Time</label>
+                <input
+                  type="time"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#1DB954]"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="isRecurring"
+                checked={isRecurring}
+                onChange={(e) => setIsRecurring(e.target.checked)}
+                className="w-4 h-4 accent-[#1DB954]"
+              />
+              <label htmlFor="isRecurring" className="text-sm font-medium">
+                This is a recurring event
+              </label>
+            </div>
+
+            {isRecurring && (
+              <div>
+                <label className="block text-sm font-medium mb-2">Recurring Pattern</label>
+                <select
+                  value={recurringPattern}
+                  onChange={(e) => setRecurringPattern(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#1DB954]"
+                >
+                  <option value="">Select pattern</option>
+                  {recurringOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Cover Image URL</label>
+              <input
+                type="url"
+                value={coverImage}
+                onChange={(e) => setCoverImage(e.target.value)}
+                placeholder="https://..."
+                className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#1DB954]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Max Attendees</label>
+              <input
+                type="number"
+                value={maxAttendees}
+                onChange={(e) => setMaxAttendees(e.target.value)}
+                min={2}
+                placeholder="Leave empty for unlimited"
+                className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#1DB954]"
+              />
+            </div>
+
+            {error && (
+              <p className="text-red-400 text-sm">{error}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full bg-[#1DB954] hover:bg-[#1ed760] text-black font-semibold py-3 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {submitting ? 'Creating...' : 'Next: Curate Song Pool'}
+            </button>
+          </form>
+        )}
+
+        {/* Step 2: Song Pool Curation */}
+        {step === 2 && createdEventId && user && (
           <div>
-            <label className="block text-sm font-medium mb-2">Cover Image URL</label>
-            <input
-              type="url"
-              value={coverImage}
-              onChange={(e) => setCoverImage(e.target.value)}
-              placeholder="https://..."
-              className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#1DB954]"
-            />
+            <div className="mb-6">
+              <h2 className="text-xl font-bold tracking-tight mb-1">Curate Your Song Pool</h2>
+              <p className="text-sm text-gray-500">
+                Use filters to discover songs and build the initial pool. Attendees will vote on these at the event.
+              </p>
+            </div>
+
+            <HostSongCurator eventId={createdEventId} userId={user.id} />
+
+            <div className="flex items-center justify-between mt-8 pt-6 border-t border-white/[0.06]">
+              <Link
+                href={`/events/${createdEventId}`}
+                className="text-sm text-gray-500 hover:text-white transition-colors"
+              >
+                Skip for now
+              </Link>
+              <Link
+                href={`/events/${createdEventId}`}
+                className="bg-[#1DB954] hover:bg-[#1ed760] text-black font-semibold px-6 py-2.5 rounded-lg transition-colors text-sm"
+              >
+                Done
+              </Link>
+            </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Max Attendees</label>
-            <input
-              type="number"
-              value={maxAttendees}
-              onChange={(e) => setMaxAttendees(e.target.value)}
-              min={2}
-              placeholder="Leave empty for unlimited"
-              className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#1DB954]"
-            />
-          </div>
-
-          {error && (
-            <p className="text-red-400 text-sm">{error}</p>
-          )}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full bg-[#1DB954] hover:bg-[#1ed760] text-black font-semibold py-3 rounded-lg transition-colors disabled:opacity-50"
-          >
-            {submitting ? 'Creating...' : 'Create Event'}
-          </button>
-        </form>
+        )}
       </main>
     </div>
   )

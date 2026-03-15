@@ -91,6 +91,8 @@ export interface Track {
   previewUrl: string | null
   trackNumber: number
   externalId: string
+  popularity?: number
+  releaseDate?: string
 }
 
 export interface Album {

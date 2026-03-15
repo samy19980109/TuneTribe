@@ -31,7 +31,7 @@ export default function SongVotingSection({ eventId }: SongVotingSectionProps) {
     setRefreshKey(k => k + 1)
   }, [])
 
-  // Fetch nominations — runs on mount, on refreshKey change, and when switching to leaderboard
+  // Fetch nominations
   useEffect(() => {
     const fetchNominations = async () => {
       const { data: noms } = await supabase
@@ -61,7 +61,6 @@ export default function SongVotingSection({ eventId }: SongVotingSectionProps) {
     fetchNominations()
   }, [eventId, user, refreshKey])
 
-  // Re-fetch when switching to leaderboard tab
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab)
     if (tab === 'leaderboard') {
