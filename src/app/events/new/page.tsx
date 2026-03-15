@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import type { Genre } from '@/lib/types'
@@ -14,8 +13,6 @@ import HostSongCurator from '@/components/voting/HostSongCurator'
 const supabase = createClient()
 
 export default function NewEventPage() {
-  const router = useRouter()
-
   const { user, loading } = useRequireAuth()
   const { signOut } = useAuthStore()
 
