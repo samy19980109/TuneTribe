@@ -65,6 +65,7 @@ export default function SongSearch({ eventId, userId, onNominated }: SongSearchP
         album_art: track.albumArt,
         duration: track.duration,
         preview_url: track.previewUrl,
+        release_year: track.releaseDate?.slice(0, 4) || null,
       })
 
     if (insertError) {

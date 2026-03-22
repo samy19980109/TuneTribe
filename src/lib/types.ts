@@ -118,6 +118,7 @@ export interface SongNomination {
   album_art: string
   duration: number
   preview_url: string | null
+  release_year: string | null
   vote_count: number
   created_at: string
   nominator?: Profile

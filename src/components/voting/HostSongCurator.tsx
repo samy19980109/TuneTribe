@@ -195,6 +195,7 @@ export default function HostSongCurator({ eventId, userId }: HostSongCuratorProp
       album_art: track.albumArt,
       duration: track.duration,
       preview_url: track.previewUrl,
+      release_year: track.releaseDate?.slice(0, 4) || null,
     }))
 
     const { error: insertError } = await supabase
@@ -232,6 +233,7 @@ export default function HostSongCurator({ eventId, userId }: HostSongCuratorProp
         album_art: track.albumArt,
         duration: track.duration,
         preview_url: track.previewUrl,
+        release_year: track.releaseDate?.slice(0, 4) || null,
       })
 
     if (insertError) {
@@ -524,11 +526,19 @@ export default function HostSongCurator({ eventId, userId }: HostSongCuratorProp
                   />
 
                   {/* Album art */}
-                  <img
-                    src={track.albumArt}
-                    alt={track.album}
-                    className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
-                  />
+                  {track.albumArt ? (
+                    <img
+                      src={track.albumArt}
+                      alt={track.album}
+                      className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg bg-white/5 flex-shrink-0 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                      </svg>
+                    </div>
+                  )}
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">

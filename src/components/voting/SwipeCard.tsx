@@ -23,10 +23,10 @@ export default function SwipeCard({ nomination, deltaX, isDragging, isTop, onPla
       style={{
         transform: isTop
           ? `translateX(${deltaX}px) rotate(${rotation}deg)`
-          : 'scale(0.95) translateY(8px)',
-        transition: isDragging ? 'none' : 'transform 0.3s ease',
+          : 'scale(0.85)',
+        transition: isDragging ? 'none' : 'transform 0.3s ease, opacity 0.3s ease',
         zIndex: isTop ? 2 : 1,
-        opacity: isTop ? 1 : 0.6,
+        opacity: isTop ? 1 : 0,
       }}
     >
       {/* Album art */}
@@ -76,6 +76,17 @@ export default function SwipeCard({ nomination, deltaX, isDragging, isTop, onPla
         <h3 className="text-lg font-bold text-white truncate mb-1">{nomination.title}</h3>
         <p className="text-sm text-gray-400 truncate">{nomination.artist}</p>
         <p className="text-xs text-gray-600 truncate mt-1">{nomination.album}</p>
+        <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+          {nomination.duration > 0 && (
+            <span>{Math.floor(nomination.duration / 60)}:{String(Math.round(nomination.duration % 60)).padStart(2, '0')}</span>
+          )}
+          {nomination.duration > 0 && nomination.release_year && (
+            <span className="text-gray-700">·</span>
+          )}
+          {nomination.release_year && (
+            <span>{nomination.release_year}</span>
+          )}
+        </div>
       </div>
     </div>
   )

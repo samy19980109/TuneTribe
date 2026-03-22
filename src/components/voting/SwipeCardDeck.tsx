@@ -23,6 +23,11 @@ export default function SwipeCardDeck({ nominations, userId, onVoteCast }: Swipe
   const [isAnimating, setIsAnimating] = useState(false)
   const { playPreview, stopPreview } = usePlayerStore()
 
+  // Reset index when nominations array changes (e.g. after re-fetch removes voted songs)
+  useEffect(() => {
+    setCurrentIndex(0)
+  }, [nominations])
+
   const currentNom = nominations[currentIndex] || null
   const nextNom = nominations[currentIndex + 1] || null
 
