@@ -13,6 +13,16 @@ interface SpotifyArtist { name: string }
 interface SpotifyImage { url: string }
 interface SpotifyAlbum { name: string; images: SpotifyImage[]; release_date: string }
 
+interface SpotifyFullArtist {
+  id: string
+  name: string
+  images: SpotifyImage[]
+}
+
+interface SpotifyArtistSearchResponse {
+  artists: { items: SpotifyFullArtist[] }
+}
+
 interface SpotifyTrack {
   id: string
   name: string
@@ -100,22 +110,10 @@ function parseMultiValue(params: URLSearchParams, key: string): string[] {
   return val.split(',').map(v => v.trim()).filter(Boolean)
 }
 
-function buildSpotifyQuery(params: URLSearchParams): string {
-  // Spotify search only supports: artist:, album:, track:, year:, isrc:, upc:
-  // genre: and tag: are NOT valid — pass genres as plain text keywords
-  const parts: string[] = []
-
-  const q = params.get('q')
-  if (q?.trim()) parts.push(q.trim())
-
-  // Genres as plain text (Spotify doesn't support genre: modifier in search)
-  parseMultiValue(params, 'genre').forEach(g => parts.push(g))
-
-  parseMultiValue(params, 'artist').forEach(a => parts.push(`artist:${a}`))
-
+function appendStructuredModifiers(parts: string[], params: URLSearchParams): void {
+  // artist filter is handled via direct artist lookup, not keyword modifier
   const album = params.get('album')
   if (album?.trim()) parts.push(`album:${album.trim()}`)
-
   const yearFrom = params.get('yearFrom')
   const yearTo = params.get('yearTo')
   if (yearFrom && yearTo) {
@@ -125,10 +123,31 @@ function buildSpotifyQuery(params: URLSearchParams): string {
   } else if (yearTo) {
     parts.push(`year:${yearTo}`)
   }
+}
 
-  // Tags as plain text (Spotify doesn't support tag: modifier)
-  parseMultiValue(params, 'tag').forEach(t => parts.push(t))
+function buildSpotifyTrackQuery(params: URLSearchParams): string {
+  const parts: string[] = []
+  const q = params.get('q')
 
+  if (q?.trim()) {
+    // When user typed a specific query, use it as-is without genre/tag pollution
+    parts.push(q.trim())
+  } else {
+    // Discovery mode: genres and tags form the query
+    parseMultiValue(params, 'genre').forEach(g => parts.push(g))
+    parseMultiValue(params, 'tag').forEach(t => parts.push(t))
+  }
+
+  appendStructuredModifiers(parts, params)
+  return parts.join(' ')
+}
+
+function buildSpotifyArtistTrackQuery(params: URLSearchParams): string {
+  const q = params.get('q')?.trim()
+  if (!q) return ''
+
+  const parts: string[] = [`artist:${q}`]
+  appendStructuredModifiers(parts, params)
   return parts.join(' ')
 }
 
@@ -159,28 +178,125 @@ function buildMusicBrainzQuery(params: URLSearchParams): string {
   return parts.join(' AND ')
 }
 
-// ── Spotify search ──
+// ── Spotify artist lookup ──
 
-async function searchSpotify(params: URLSearchParams): Promise<Track[]> {
-  const query = buildSpotifyQuery(params)
-  if (!query) return []
-
-  const token = await getClientCredentialsToken()
-  const limitParam = params.get('limit')
-  const limit = Math.min(Math.max(parseInt(limitParam || '20') || 20, 1), 50)
-
-  const res = await fetch(
-    `https://api.spotify.com/v1/search?type=track&q=${encodeURIComponent(query)}&limit=${limit}`,
+async function findArtistTracks(
+  artistName: string,
+  token: string,
+  limit: number
+): Promise<SpotifyTrack[]> {
+  // Step 1: Find the exact artist — use quoted search to find niche artists
+  console.log(`[artist-lookup] Searching for artist: "${artistName}"`)
+  const quotedQuery = encodeURIComponent(`"${artistName}"`)
+  const artistRes = await fetch(
+    `https://api.spotify.com/v1/search?type=artist&q=${quotedQuery}&limit=10`,
     { headers: { Authorization: `Bearer ${token}` } }
   )
-
-  if (!res.ok) {
-    throw new Error(`Spotify search failed: ${res.status}`)
+  if (!artistRes.ok) {
+    console.error(`[artist-lookup] Artist search failed: ${artistRes.status}`)
+    return []
   }
 
-  const data: SpotifySearchResponse = await res.json()
+  const artistData: SpotifyArtistSearchResponse = await artistRes.json()
+  const artists = artistData.artists.items
+  console.log(`[artist-lookup] Found ${artists.length} artists:`, artists.map(a => `${a.name} (${a.id})`))
 
-  return data.tracks.items.map((track) => ({
+  // Find all exact name matches (there can be multiple artists with the same name)
+  const exactMatches = artists.filter(
+    a => a.name.toLowerCase() === artistName.toLowerCase()
+  )
+  const matchesToUse = exactMatches.length > 0 ? exactMatches : artists.slice(0, 1)
+
+  if (matchesToUse.length === 0) {
+    console.log(`[artist-lookup] No artist match found for "${artistName}"`)
+    return []
+  }
+  console.log(`[artist-lookup] Using ${matchesToUse.length} artist(s):`, matchesToUse.map(a => `${a.name} (${a.id})`))
+
+  // Step 2: Get albums for each matched artist and fetch their tracks
+  const allTracks: SpotifyTrack[] = []
+
+  for (const match of matchesToUse) {
+    // Get artist's albums
+    const albumsRes = await fetch(
+      `https://api.spotify.com/v1/artists/${match.id}/albums?include_groups=album%2Csingle&limit=20`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    if (!albumsRes.ok) {
+      console.log(`[artist-lookup] Albums fetch failed for ${match.name}: ${albumsRes.status}`)
+      continue
+    }
+
+    const albumsData: { items: { id: string; name: string }[] } = await albumsRes.json()
+    console.log(`[artist-lookup] ${match.name}: ${albumsData.items.length} albums/singles`)
+
+    if (albumsData.items.length === 0) continue
+
+    // Get track IDs from albums (up to 5 albums)
+    const albumTrackResults = await Promise.allSettled(
+      albumsData.items.slice(0, 5).map(async (album) => {
+        const res = await fetch(
+          `https://api.spotify.com/v1/albums/${album.id}/tracks?limit=50`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        if (!res.ok) return []
+        const data: { items: { id: string }[] } = await res.json()
+        return data.items.map(t => t.id)
+      })
+    )
+
+    const trackIds: string[] = []
+    for (const result of albumTrackResults) {
+      if (result.status === 'fulfilled') trackIds.push(...result.value)
+    }
+
+    // Fetch full track objects (need album art, popularity, etc.)
+    if (trackIds.length > 0) {
+      const batch = trackIds.slice(0, 50)
+      const fullRes = await fetch(
+        `https://api.spotify.com/v1/tracks?ids=${batch.join(',')}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (fullRes.ok) {
+        const fullData: { tracks: SpotifyTrack[] } = await fullRes.json()
+        allTracks.push(...fullData.tracks.filter(Boolean))
+      }
+    }
+  }
+
+  // Step 3: Also do a keyword search as extra coverage
+  const searchQuery = encodeURIComponent(`artist:"${artistName}"`)
+  const limitsToTry = [limit, 10, 5]
+  for (const tryLimit of limitsToTry) {
+    const searchRes = await fetch(
+      `https://api.spotify.com/v1/search?type=track&q=${searchQuery}&limit=${tryLimit}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    if (searchRes.ok) {
+      const searchData: SpotifySearchResponse = await searchRes.json()
+      allTracks.push(...searchData.tracks.items)
+      break
+    }
+  }
+
+  // Dedup by ID
+  const seen = new Set<string>()
+  const merged: SpotifyTrack[] = []
+  for (const t of allTracks) {
+    if (!seen.has(t.id)) {
+      seen.add(t.id)
+      merged.push(t)
+    }
+  }
+
+  console.log(`[artist-lookup] Final: ${merged.length} tracks`)
+  return merged.slice(0, limit)
+}
+
+// ── Spotify search ──
+
+function mapSpotifyTrack(track: SpotifyTrack): Track {
+  return {
     id: track.id,
     source: 'spotify' as MusicSource,
     title: track.name,
@@ -193,7 +309,98 @@ async function searchSpotify(params: URLSearchParams): Promise<Track[]> {
     externalId: track.id,
     popularity: track.popularity,
     releaseDate: track.album.release_date,
-  }))
+  }
+}
+
+async function searchSpotify(params: URLSearchParams): Promise<Track[]> {
+  const trackQuery = buildSpotifyTrackQuery(params)
+  const artistQuery = buildSpotifyArtistTrackQuery(params)
+  const artistFilters = parseMultiValue(params, 'artist')
+
+  if (!trackQuery && !artistQuery && artistFilters.length === 0) return []
+
+  const token = await getClientCredentialsToken()
+  const limitParam = params.get('limit')
+  const limit = Math.min(Math.max(parseInt(limitParam || '20') || 20, 1), 50)
+
+  const fetchTracks = async (query: string): Promise<SpotifyTrack[]> => {
+    const res = await fetch(
+      `https://api.spotify.com/v1/search?type=track&q=${encodeURIComponent(query)}&limit=${limit}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    if (!res.ok) throw new Error(`Spotify search failed: ${res.status}`)
+    const data: SpotifySearchResponse = await res.json()
+    return data.tracks.items
+  }
+
+  // When artist filter is set, use direct artist lookup for accurate results
+  if (artistFilters.length > 0) {
+    const artistResults = await Promise.allSettled(
+      artistFilters.map(name => findArtistTracks(name, token, limit))
+    )
+
+    const artistTracks: SpotifyTrack[] = []
+    for (const result of artistResults) {
+      if (result.status === 'fulfilled') {
+        artistTracks.push(...result.value)
+      }
+    }
+
+    // Also run the regular track query in parallel if there's a q param
+    const q = params.get('q')?.trim()
+    if (q) {
+      try {
+        const searchTracks = await fetchTracks(q)
+        artistTracks.push(...searchTracks)
+      } catch { /* artist lookup results are sufficient */ }
+    }
+
+    // Dedup and apply limit
+    const seen = new Set<string>()
+    const merged: Track[] = []
+    for (const item of artistTracks) {
+      if (!seen.has(item.id)) {
+        seen.add(item.id)
+        merged.push(mapSpotifyTrack(item))
+      }
+    }
+    return merged.slice(0, limit)
+  }
+
+  // No artist filter — use query-based search
+  // Discovery mode (no q): single search
+  if (!artistQuery) {
+    const items = await fetchTracks(trackQuery)
+    return items.map(mapSpotifyTrack)
+  }
+
+  // Two-pronged search: track query + artist-aware query in parallel
+  const [trackResult, artistResult] = await Promise.allSettled([
+    trackQuery ? fetchTracks(trackQuery) : Promise.resolve([]),
+    fetchTracks(artistQuery),
+  ])
+
+  const trackItems = trackResult.status === 'fulfilled' ? trackResult.value : []
+  const artistItems = artistResult.status === 'fulfilled' ? artistResult.value : []
+
+  // Merge: track results first, then unique artist results
+  const seen = new Set<string>()
+  const merged: Track[] = []
+
+  for (const item of trackItems) {
+    if (!seen.has(item.id)) {
+      seen.add(item.id)
+      merged.push(mapSpotifyTrack(item))
+    }
+  }
+  for (const item of artistItems) {
+    if (!seen.has(item.id)) {
+      seen.add(item.id)
+      merged.push(mapSpotifyTrack(item))
+    }
+  }
+
+  return merged.slice(0, limit)
 }
 
 // ── MusicBrainz search (fallback) ──
@@ -253,7 +460,8 @@ export async function GET(request: NextRequest) {
   const sort = params.get('sort')
 
   // Check if any filter is set
-  const hasQuery = buildSpotifyQuery(params).length > 0
+  const hasArtistFilter = parseMultiValue(params, 'artist').length > 0
+  const hasQuery = buildSpotifyTrackQuery(params).length > 0 || buildSpotifyArtistTrackQuery(params).length > 0 || hasArtistFilter
 
   if (!hasQuery) {
     return NextResponse.json({ tracks: [] })

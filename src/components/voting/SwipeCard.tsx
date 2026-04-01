@@ -2,20 +2,46 @@
 
 import type { SongNomination } from '@/lib/types'
 
+type PlaybackMode = 'sdk' | 'preview' | 'none'
+
 interface SwipeCardProps {
   nomination: SongNomination
   deltaX: number
   isDragging: boolean
   isTop: boolean
-  onPlayPreview: () => void
+  onPlay: () => void
+  onStop: () => void
+  isPlaying: boolean
+  playbackMode: PlaybackMode
+  progress: number
 }
 
 const THRESHOLD = 100
 
-export default function SwipeCard({ nomination, deltaX, isDragging, isTop, onPlayPreview }: SwipeCardProps) {
+export default function SwipeCard({
+  nomination,
+  deltaX,
+  isDragging,
+  isTop,
+  onPlay,
+  onStop,
+  isPlaying,
+  playbackMode,
+  progress,
+}: SwipeCardProps) {
   const rotation = isTop ? deltaX * 0.08 : 0
   const likeOpacity = Math.max(0, Math.min(1, deltaX / THRESHOLD))
   const skipOpacity = Math.max(0, Math.min(1, -deltaX / THRESHOLD))
+
+  const handlePlayPause = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (playbackMode === 'none') return
+    if (isPlaying) {
+      onStop()
+    } else {
+      onPlay()
+    }
+  }
 
   return (
     <div
@@ -55,19 +81,52 @@ export default function SwipeCard({ nomination, deltaX, isDragging, isTop, onPla
           </>
         )}
 
-        {/* Preview button */}
-        {nomination.preview_url && isTop && (
+        {/* Progress bar */}
+        {isTop && playbackMode !== 'none' && (
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/30">
+            <div
+              className={`h-full transition-[width] duration-300 ease-linear ${
+                playbackMode === 'sdk' ? 'bg-[#1DB954]' : 'bg-gray-400'
+              }`}
+              style={{ width: `${progress * 100}%` }}
+            />
+          </div>
+        )}
+
+        {/* Play/pause button */}
+        {isTop && (
           <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onPlayPreview()
-            }}
-            className="absolute bottom-4 right-4 w-12 h-12 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center hover:bg-black/80 transition-colors"
+            onClick={handlePlayPause}
+            disabled={playbackMode === 'none'}
+            className={`absolute bottom-4 right-4 w-12 h-12 rounded-full backdrop-blur-md flex items-center justify-center transition-colors ${
+              playbackMode === 'none'
+                ? 'bg-black/40 cursor-not-allowed'
+                : 'bg-black/60 hover:bg-black/80'
+            }`}
+            title={playbackMode === 'none' ? 'No preview available' : undefined}
           >
-            <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z" />
-            </svg>
+            {isPlaying ? (
+              <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+              </svg>
+            ) : (
+              <svg className={`w-5 h-5 ml-0.5 ${playbackMode === 'none' ? 'text-gray-500' : 'text-white'}`} fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            )}
           </button>
+        )}
+
+        {/* Mode badge */}
+        {isTop && playbackMode !== 'none' && isPlaying && (
+          <div className="absolute bottom-4 right-18 flex items-center gap-1.5 bg-black/50 backdrop-blur-md rounded-full px-2.5 py-1">
+            <div className={`w-1.5 h-1.5 rounded-full ${
+              playbackMode === 'sdk' ? 'bg-[#1DB954]' : 'bg-gray-400'
+            }`} />
+            <span className="text-[10px] font-medium text-white/80">
+              {playbackMode === 'sdk' ? 'Premium' : 'Preview'}
+            </span>
+          </div>
         )}
       </div>
 
@@ -81,7 +140,7 @@ export default function SwipeCard({ nomination, deltaX, isDragging, isTop, onPla
             <span>{Math.floor(nomination.duration / 60)}:{String(Math.round(nomination.duration % 60)).padStart(2, '0')}</span>
           )}
           {nomination.duration > 0 && nomination.release_year && (
-            <span className="text-gray-700">·</span>
+            <span className="text-gray-700">&middot;</span>
           )}
           {nomination.release_year && (
             <span>{nomination.release_year}</span>

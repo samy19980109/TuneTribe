@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { storeGrantedScopes } from '@/lib/music-api/spotify-auth'
 
 /**
  * Parse and store Spotify tokens from URL params.
@@ -26,6 +27,7 @@ function extractAndStoreTokens(): string | null {
     }
 
     sessionStorage.setItem('just_authed', 'true')
+    storeGrantedScopes()
     return null
   } catch (e) {
     console.error('Failed to store token:', e)

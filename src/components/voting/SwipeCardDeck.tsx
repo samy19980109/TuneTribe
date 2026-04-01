@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { SongNomination } from '@/lib/types'
 import { usePlayerStore } from '@/stores/usePlayerStore'
+import { useSpotifySDK } from '@/hooks/useSpotifySDK'
 import SwipeCard from './SwipeCard'
 
 const supabase = createClient()
@@ -21,15 +22,39 @@ export default function SwipeCardDeck({ nominations, userId, onVoteCast }: Swipe
   const [isDragging, setIsDragging] = useState(false)
   const [startX, setStartX] = useState(0)
   const [isAnimating, setIsAnimating] = useState(false)
-  const { playPreview, stopPreview } = usePlayerStore()
+  const [needsGesture, setNeedsGesture] = useState(false)
 
-  // Reset index when nominations array changes (e.g. after re-fetch removes voted songs)
+  const { player, deviceId, isPremium, isReady } = useSpotifySDK()
+  const { playTrack, stopTrack, isPlaying, playbackMode, normalizedProgress } = usePlayerStore()
+
+  // Reset index when nominations array identity changes
+  const nominationsKey = useMemo(() => nominations.map(n => n.id).join(','), [nominations])
   useEffect(() => {
     setCurrentIndex(0)
-  }, [nominations])
+  }, [nominationsKey])
 
   const currentNom = nominations[currentIndex] || null
   const nextNom = nominations[currentIndex + 1] || null
+
+  // Auto-play when card changes — intentionally keyed only on card identity
+  useEffect(() => {
+    if (!currentNom || needsGesture) return
+
+    playTrack(currentNom, player, deviceId, isPremium, isReady).catch(() => {
+      setNeedsGesture(true)
+    })
+
+    return () => {
+      stopTrack(player)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, currentNom?.id])
+
+  const handleUserGestureThenPlay = useCallback(() => {
+    if (!currentNom) return
+    setNeedsGesture(false)
+    playTrack(currentNom, player, deviceId, isPremium, isReady)
+  }, [currentNom, player, deviceId, isPremium, isReady, playTrack])
 
   const castVote = useCallback(async (nomination: SongNomination, vote: 1 | -1) => {
     // Insert vote
@@ -59,7 +84,7 @@ export default function SwipeCardDeck({ nominations, userId, onVoteCast }: Swipe
     const flyX = direction === 'right' ? window.innerWidth + 200 : -(window.innerWidth + 200)
     setDeltaX(flyX)
 
-    stopPreview()
+    stopTrack(player)
 
     setTimeout(() => {
       const vote = direction === 'right' ? 1 : -1
@@ -68,7 +93,7 @@ export default function SwipeCardDeck({ nominations, userId, onVoteCast }: Swipe
       setDeltaX(0)
       setIsAnimating(false)
     }, 300)
-  }, [currentNom, isAnimating, castVote, stopPreview])
+  }, [currentNom, isAnimating, castVote, stopTrack, player])
 
   // Pointer events
   const onPointerDown = (e: React.PointerEvent) => {
@@ -129,6 +154,23 @@ export default function SwipeCardDeck({ nominations, userId, onVoteCast }: Swipe
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       >
+        {/* Tap to play overlay */}
+        {needsGesture && (
+          <button
+            onClick={handleUserGestureThenPlay}
+            className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-2xl"
+          >
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-16 h-16 rounded-full bg-[#1DB954] flex items-center justify-center">
+                <svg className="w-8 h-8 text-black ml-1" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </div>
+              <span className="text-sm text-white/80 font-medium">Tap to play</span>
+            </div>
+          </button>
+        )}
+
         {/* Next card (behind) */}
         {nextNom && (
           <SwipeCard
@@ -136,7 +178,11 @@ export default function SwipeCardDeck({ nominations, userId, onVoteCast }: Swipe
             deltaX={0}
             isDragging={false}
             isTop={false}
-            onPlayPreview={() => {}}
+            onPlay={() => {}}
+            onStop={() => {}}
+            isPlaying={false}
+            playbackMode="none"
+            progress={0}
           />
         )}
 
@@ -146,9 +192,11 @@ export default function SwipeCardDeck({ nominations, userId, onVoteCast }: Swipe
           deltaX={deltaX}
           isDragging={isDragging}
           isTop={true}
-          onPlayPreview={() => {
-            if (currentNom.preview_url) playPreview(currentNom.preview_url)
-          }}
+          onPlay={() => playTrack(currentNom, player, deviceId, isPremium, isReady)}
+          onStop={() => stopTrack(player)}
+          isPlaying={isPlaying}
+          playbackMode={playbackMode}
+          progress={normalizedProgress}
         />
       </div>
 

@@ -107,7 +107,9 @@ export default function HostSongCurator({ eventId, userId }: HostSongCuratorProp
     }
     if (selectedTags.length > 0) params.set('tag', selectedTags.join(','))
     if (sort !== 'relevance') params.set('sort', sort)
-    params.set('limit', resultLimit.toString())
+    // Fetch max results for underground sort to surface less popular tracks
+    const fetchLimit = sort === 'popularity_asc' ? 50 : resultLimit
+    params.set('limit', fetchLimit.toString())
 
     if (!query.trim() && selectedGenres.length === 0 && !artistFilter.trim() && !albumFilter.trim() && selectedEras.length === 0 && selectedTags.length === 0) {
       setResults([])
@@ -413,24 +415,31 @@ export default function HostSongCurator({ eventId, userId }: HostSongCuratorProp
             <label className="block text-xs font-medium text-gray-500 mb-1.5">Show</label>
             <div className="flex gap-1.5">
               {[
-                { n: 20, label: 'Top 20' },
-                { n: 50, label: 'Top 50' },
-              ].map(({ n, label }) => (
-                <button
-                  key={n}
-                  onClick={() => {
-                    setResultLimit(n)
-                    setSort('popularity_desc')
-                  }}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                    resultLimit === n && sort === 'popularity_desc'
-                      ? 'bg-[#1DB954] text-black'
-                      : 'bg-white/5 text-gray-300 hover:bg-white/10'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+                { n: 20, label: 'Top 20', forceSort: 'popularity_desc' as SortOption },
+                { n: 50, label: 'Top 50', forceSort: 'popularity_desc' as SortOption },
+                { n: 50, label: 'All', forceSort: null },
+              ].map(({ n, label, forceSort }) => {
+                const isActive = forceSort
+                  ? resultLimit === n && sort === forceSort
+                  : resultLimit === n && sort !== 'popularity_desc'
+                return (
+                  <button
+                    key={label}
+                    onClick={() => {
+                      setResultLimit(n)
+                      if (forceSort) setSort(forceSort)
+                      else if (sort === 'popularity_desc') setSort('relevance')
+                    }}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                      isActive
+                        ? 'bg-[#1DB954] text-black'
+                        : 'bg-white/5 text-gray-300 hover:bg-white/10'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
             </div>
           </div>
 

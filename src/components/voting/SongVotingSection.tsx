@@ -4,8 +4,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import type { SongNomination } from '@/lib/types'
+import { redirectToSpotifyAuth } from '@/lib/music-api/spotify-auth'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { usePlayerStore } from '@/stores/usePlayerStore'
+import { useSpotifySDK } from '@/hooks/useSpotifySDK'
 import SongSearch from './SongSearch'
 import SwipeCardDeck from './SwipeCardDeck'
 import SongLeaderboard from './SongLeaderboard'
@@ -20,7 +22,8 @@ interface SongVotingSectionProps {
 
 export default function SongVotingSection({ eventId }: SongVotingSectionProps) {
   const { user } = useAuthStore()
-  const { playPreview } = usePlayerStore()
+  const { player, deviceId, isPremium, isReady, needsReauth } = useSpotifySDK()
+  const { playTrack, stopTrack, isPlaying, currentTrackId } = usePlayerStore()
   const [activeTab, setActiveTab] = useState<Tab>('leaderboard')
   const [nominations, setNominations] = useState<SongNomination[]>([])
   const [unvoted, setUnvoted] = useState<SongNomination[]>([])
@@ -104,6 +107,21 @@ export default function SongVotingSection({ eventId }: SongVotingSectionProps) {
         </p>
       </div>
 
+      {/* Re-auth banner for streaming scopes */}
+      {needsReauth && (
+        <div className="mb-4 flex items-center justify-between gap-3 bg-[#1DB954]/10 border border-[#1DB954]/20 rounded-xl px-4 py-3">
+          <p className="text-sm text-gray-300">
+            Enable full song previews with Spotify Premium
+          </p>
+          <button
+            onClick={() => redirectToSpotifyAuth(window.location.pathname)}
+            className="flex-shrink-0 text-xs font-semibold bg-[#1DB954] text-black px-3 py-1.5 rounded-full hover:bg-[#1ed760] transition-colors"
+          >
+            Reconnect
+          </button>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-1 bg-white/[0.03] rounded-xl p-1 mb-6">
         {tabs.map((tab) => (
@@ -140,7 +158,15 @@ export default function SongVotingSection({ eventId }: SongVotingSectionProps) {
           {activeTab === 'leaderboard' && (
             <SongLeaderboard
               nominations={nominations}
-              onPlayPreview={playPreview}
+              onPlay={(nom: SongNomination) => {
+                if (isPlaying && currentTrackId === nom.spotify_track_id) {
+                  stopTrack(player)
+                } else {
+                  playTrack(nom, player, deviceId, isPremium, isReady)
+                }
+              }}
+              currentTrackId={currentTrackId}
+              isPlaying={isPlaying}
             />
           )}
 

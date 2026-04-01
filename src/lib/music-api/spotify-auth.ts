@@ -10,7 +10,22 @@ const SCOPES = [
   'user-read-email',
   'user-top-read',
   'user-library-read',
+  'streaming',
+  'user-modify-playback-state',
+  'user-read-playback-state',
 ].join(' ')
+
+export function hasStreamingScopes(): boolean {
+  if (typeof window === 'undefined') return false
+  const stored = localStorage.getItem('spotify_granted_scopes')
+  if (!stored) return false
+  return stored.includes('streaming') && stored.includes('user-modify-playback-state')
+}
+
+export function storeGrantedScopes(): void {
+  if (typeof window === 'undefined') return
+  localStorage.setItem('spotify_granted_scopes', SCOPES)
+}
 
 function generateCodeVerifier(length: number): string {
   const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
